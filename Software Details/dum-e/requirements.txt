@@ -1,0 +1,2 @@
+# Host tooling (deploy scripts). Install: python -m pip install -r requirements.txt
+mpremote
