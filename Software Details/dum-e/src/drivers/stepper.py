@@ -1,34 +1,23 @@
-"""DRV8825 / step-dir stepper driver — API placeholder until pins and timing are tuned."""
+from machine import Pin, PWM
 
 
-class StepperDriver:
-    """Minimal stepper interface; wire to GPIO and pulse timing later."""
+class Servo:
+    def __init__(self, pin_num, min_us=500, max_us=2500, freq=50):
+        self.pwm = PWM(Pin(pin_num), freq=freq)
+        self.min_us = min_us
+        self.max_us = max_us
+        self.freq = freq
+        self._angle = 90
+        self.write(90)
 
-    def __init__(self, name, step_pin, dir_pin, enable_pin):
-        self._name = name
-        self._step_pin = step_pin
-        self._dir_pin = dir_pin
-        self._enable_pin = enable_pin
-        # TODO: configure Pin objects, enable polarity, microstep mode via hardware
+    def write(self, angle):
+        angle = max(0, min(180, angle))
+        self._angle = angle
+        pulse_us = self.min_us + (self.max_us - self.min_us) * angle / 180
+        period_us = 1_000_000 / self.freq
+        duty = int(1023 * pulse_us / period_us)
+        self.pwm.duty(duty)
 
-    def enable(self):
-        # TODO: drive ENABLE pin
-        pass
-
-    def disable(self):
-        # TODO: drive ENABLE pin
-        pass
-
-    def set_direction(self, forward=True):
-        # TODO: set DIR line
-        pass
-
-    def step(self):
-        # TODO: pulse STEP; tune delay for driver/motor combo
-        pass
-
-    def move_steps(self, count, forward=True):
-        # TODO: loop step() with acceleration limits if needed
-        self.set_direction(forward)
-        for _ in range(abs(count)):
-            self.step()
+    @property
+    def angle(self):
+        return self._angle
