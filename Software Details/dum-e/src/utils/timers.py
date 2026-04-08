@@ -1,15 +1,26 @@
-"""Small time helpers for MicroPython (ticks-based)."""
-
 import time
 
 
+# Current board uptime in milliseconds (for timeouts, cooldowns, and durations).
 def current_millis():
-    """Milliseconds since boot (wraps per `time.ticks_ms()` rules)."""
     return time.ticks_ms()
 
 
-def elapsed_ms(start_ticks, now_ticks=None):
-    """Elapsed milliseconds from start_ticks to now_ticks (default: current)."""
-    if now_ticks is None:
-        now_ticks = time.ticks_ms()
-    return time.ticks_diff(now_ticks, start_ticks)
+# Milliseconds since start_ms, using ticks_diff so wraparound is handled correctly.
+def elapsed_ms(start_ms):
+    return time.ticks_diff(time.ticks_ms(), start_ms)
+
+
+# True if at least duration_ms has passed since start_ms (idle, sensor timeout, etc.).
+def has_elapsed(start_ms, duration_ms):
+    return elapsed_ms(start_ms) >= duration_ms
+
+
+# Returns a fresh timestamp; use when resetting activity, wake, or sensor timers.
+def reset_timer():
+    return current_millis()
+
+
+# Blocks for duration_ms; use sparingly—prefer non-blocking has_elapsed in the main loop.
+def sleep_ms(duration_ms):
+    time.sleep_ms(duration_ms)
