@@ -1,4 +1,4 @@
-"""Application states — provisional names match docs/state_machine.md."""
+from utils.logger import log
 
 
 class States:
@@ -11,11 +11,24 @@ class States:
 
 
 class StateMachine:
-    def __init__(self, initial=States.BOOT):
-        self.current_state = initial
-
-    def change_state(self, new_state):
-        self.current_state = new_state
+    def __init__(self):
+        self.current_state = States.BOOT
+        log("State machine initialized in BOOT")
 
     def get_state(self):
         return self.current_state
+
+    def change_state(self, new_state):
+        if new_state == self.current_state:
+            return
+
+        old_state = self.current_state
+        self.current_state = new_state
+        log("State changed: " + old_state + " -> " + new_state)
+
+    def is_state(self, state):
+        return self.current_state == state
+
+    def reset(self):
+        self.current_state = States.BOOT
+        log("State machine reset to BOOT")
