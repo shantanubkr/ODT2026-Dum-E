@@ -30,4 +30,4 @@ THINKING_DURATION_MS = 1_500  # ms thinking_behavior runs before auto-idle
 WAKE_COOLDOWN_MS = 3_000  # ms reserved for post-wake debounce (future use)
 
 # Debug
-DEBUG = True  # True: print + store logs; False: log() no-ops prints and buffer (see logger)
+DEBUG = True

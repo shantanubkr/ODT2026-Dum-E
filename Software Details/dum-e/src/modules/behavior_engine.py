@@ -30,18 +30,16 @@ class BehaviorEngine:
         return self.current_behavior  # e.g. "idle", "greeting"
 
     def idle_behavior(self):
-        """Placeholder: low-energy / background idle actions go here later."""
-        log("Idle behavior running")  # Loud today — rate-limit when idle gets real motion
+        """Placeholder: low-energy / background idle — no per-tick log (would flood the REPL)."""
+        pass  # Future: subtle motion; use set_behavior transitions for visibility
 
     def greeting_behavior(self):
         """Timed greeting; after GREETING_DURATION_MS, return to idle."""
-        log("Greeting behavior running")  # Placeholder for wave / sound
         if has_elapsed(self.behavior_start_ms, GREETING_DURATION_MS):  # Config-driven length
             self.set_behavior("idle")  # End greeting
 
     def thinking_behavior(self):
         """Timed 'busy' display; after THINKING_DURATION_MS, return to idle."""
-        log("Thinking behavior running")  # Placeholder for LEDs / motion
         if has_elapsed(self.behavior_start_ms, THINKING_DURATION_MS):  # Pretend processing window
             self.set_behavior("idle")  # Back to baseline
 

@@ -10,7 +10,19 @@ class CommandParser:
 
     def __init__(self):
         self.history = []  # FIFO of normalized command strings
-        self.valid_commands = ["pick", "drop", "move", "stop", "hello", "home", "status", "history", "reset"]  # Exact-match vocabulary
+        self.valid_commands = [
+            "pick",
+            "drop",
+            "move",
+            "stop",
+            "hello",
+            "home",
+            "ready",
+            "down",
+            "status",
+            "history",
+            "reset",
+        ]  # Exact-match vocabulary
         log("Command parser initialized")  # Startup visibility
 
     def normalize(self, raw_command):
