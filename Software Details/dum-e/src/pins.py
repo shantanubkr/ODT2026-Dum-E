@@ -1,28 +1,13 @@
-"""
-GPIO and bus assignments for DUM-E.
+"""GPIO assignments for DUM-E — pins in active use only."""
 
-**PLACEHOLDERS ONLY** — update every value after hardware is finalized and
-document the same mapping in docs/pin_map.md.
-"""
+# Servo joints (PWM, 50 Hz) — wired in motion_controller.py
+SERVO_BASE     = 4
+SERVO_SHOULDER = 22
+SERVO_ELBOW    = 23
 
-# --- steppers (DRV8825: STEP, DIR, ENABLE per axis) ---
-STEPPER_0_STEP = None  # TODO
-STEPPER_0_DIR = None
-STEPPER_0_ENABLE = None
-STEPPER_1_STEP = None
-STEPPER_1_DIR = None
-STEPPER_1_ENABLE = None
-
-# --- ultrasonic (HC-SR04) ---
-ULTRASONIC_TRIG = None  # TODO
-ULTRASONIC_ECHO = None
-
-# --- VL53L0X (I2C; pins are ESP32 I2C SDA/SCL) ---
-I2C_SDA = None  # TODO
-I2C_SCL = None
-
-# --- buzzer ---
-BUZZER = None  # TODO
-
-# --- emergency stop (active level TBD in driver/safety) ---
-EMERGENCY_STOP = None  # TODO
+# Manual-control buttons — wired in main.py
+BTN_J1   = 12
+BTN_J2   = 13
+BTN_J3   = 27
+BTN_UP   = 25
+BTN_DOWN = 18

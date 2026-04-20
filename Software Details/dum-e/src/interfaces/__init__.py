@@ -1,1 +1,1 @@
-"""External connectivity (serial, Bluetooth, web)."""
+"""External connectivity (ROS 2 bridge)."""

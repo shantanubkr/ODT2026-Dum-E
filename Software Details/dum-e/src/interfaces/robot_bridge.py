@@ -1,49 +1,31 @@
-# Laptop / ROS gateway: forwards Command objects to ROS 2 /dum_e_command (or log-only sim).
+# Laptop / ROS gateway: Dashboard → /dum_e_command (std_msgs/String). Mac: log only when DUM_E_SKIP_ROS2=1.
 
 from __future__ import annotations
 
 import os
-import sys
 
 from backend.command_schema import Actions, Command
 from utils.logger import log
 
-# Legacy script argv when DUM_E_ROS_BRIDGE_SCRIPT is set and ros2 publish fails.
-_SCRIPT_FALLBACK = {
-    "idle": "home",
-    "hello": "greet",
-    "error": "stop",
-    "ready": "ready",
-    "down": "down",
-    "reach": "reach",
-    "drop": "place",
-}
+# Contract: dum_e_state_manager must accept these command strings.
+# MOVE_HOME → idle | GREET → hello | STOP → error | RESET → idle
+# MOVE_TO ready → ready | MOVE_TO down → down | PICK_OBJECT → reach | PLACE_OBJECT → drop
 
 
 class RobotBridge:
-    """Routes Command objects toward ROS 2 state manager (std_msgs/String on /dum_e_command)."""
+    """Publishes high-level commands to ROS 2 as std_msgs/String on /dum_e_command."""
 
     def __init__(self) -> None:
-        self._ros_script = os.environ.get("DUM_E_ROS_BRIDGE_SCRIPT", "").strip() or None
-        self._ros_topic = os.environ.get("DUM_E_ROS_COMMAND_TOPIC", "/dum_e_command").strip()
-        # DUM_E_SKIP_ROS2=1: log only (Mac / tests); unset on WSL with ros2 on PATH for real pub.
-        self._skip_ros2 = os.environ.get("DUM_E_SKIP_ROS2", "").lower() in ("1", "true", "yes")
+        self.skip_ros = os.getenv("DUM_E_SKIP_ROS2") == "1"
+        self.last_command: str | None = None
         self.current_state = "IDLE"
         log(
-            "[RobotBridge] Initialized (topic="
-            + self._ros_topic
-            + "; real_ros="
-            + ("no" if self._skip_ros2 else "yes")
+            "[RobotBridge] Initialized (/dum_e_command; real_ros="
+            + ("no" if self.skip_ros else "yes")
             + ")"
         )
 
-    @property
-    def skip_ros(self) -> bool:
-        """True when we only log (ROS) Publishing and do not call the ros2 CLI."""
-        return self._skip_ros2
-
     def send(self, command: Command) -> None:
-        """Dispatch by action; extend when real transport exists."""
         action = command.action
         if action == Actions.MOVE_HOME:
             self._send_home(command)
@@ -72,9 +54,7 @@ class RobotBridge:
         elif action == Actions.PLACE_OBJECT:
             self.current_state = "DOWN"
             log(
-                "[RobotBridge] PLACE_OBJECT (target="
-                + str(command.target)
-                + ")"
+                "[RobotBridge] PLACE_OBJECT (target=" + str(command.target) + ")"
             )
             self._publish_ros_command("drop")
         else:
@@ -85,48 +65,30 @@ class RobotBridge:
             )
 
     def _publish_ros_command(self, command: str) -> None:
-        """Dual mode: always log; optionally run `ros2 topic pub` (WSL/Linux)."""
         cmd = (command or "").strip().lower()
+        self.last_command = cmd
         log("[RobotBridge] (ROS) Publishing: " + cmd)
 
-        if self._skip_ros2:
+        if self.skip_ros:
             return
 
         try:
             import subprocess
 
-            payload = "data: '" + cmd.replace("'", "") + "'"
+            # --once: single publish. CLI type is std_msgs/msg/String on ROS 2.
             subprocess.Popen(
                 [
                     "ros2",
                     "topic",
                     "pub",
                     "--once",
-                    self._ros_topic,
+                    "/dum_e_command",
                     "std_msgs/msg/String",
-                    payload,
-                ],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                start_new_session=True,
+                    "data: '" + cmd.replace("'", "") + "'",
+                ]
             )
         except Exception as exc:  # noqa: BLE001
             log("[RobotBridge ERROR] " + str(exc))
-            self._maybe_subprocess(_SCRIPT_FALLBACK.get(cmd, cmd))
-
-    def _maybe_subprocess(self, label: str) -> None:
-        """Optional local script if ros2 publish fails and DUM_E_ROS_BRIDGE_SCRIPT is set."""
-        if not self._ros_script:
-            return
-        try:
-            import subprocess
-        except ImportError:
-            log("[RobotBridge ERROR] subprocess not available on this platform")
-            return
-        try:
-            subprocess.Popen([sys.executable, self._ros_script, label], close_fds=True)
-        except Exception as exc:  # noqa: BLE001
-            log("[RobotBridge ERROR] " + label + ": " + str(exc))
 
     def _send_home(self, _command: Command) -> None:
         self.current_state = "IDLE"

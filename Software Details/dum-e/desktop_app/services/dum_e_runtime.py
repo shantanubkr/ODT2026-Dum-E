@@ -1,5 +1,5 @@
 """
-Desktop-safe bridge to DUM-E src/ (CPython + Flask). Does not import src/main.py.
+Desktop-safe bridge to DUM-E src/ (CPython). Does not import src/main.py.
 """
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ def _ensure_mp_time_shim() -> None:
 
 
 def _src_root() -> Path:
-    # backend_server/services/dum_e_runtime.py -> dum-e root is parents[2]
+    # desktop_app/services/dum_e_runtime.py -> dum-e root is parents[2]
     return Path(__file__).resolve().parent.parent.parent
 
 

@@ -1,1 +1,1 @@
-"""System logic: motion, safety, commands, state, behavior, perception."""
+"""System logic: motion, safety, commands, state, behavior."""

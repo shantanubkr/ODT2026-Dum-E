@@ -1,0 +1,6 @@
+# Desktop app dependencies. Install: pip install -r desktop_app/requirements.txt
+faster-whisper
+python-dotenv
+sounddevice
+scipy
+simpleaudio
