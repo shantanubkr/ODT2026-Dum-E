@@ -2,28 +2,89 @@ from drivers.stepper import Servo
 
 from utils.logger import log
 
-from utils.timers import current_millis
+from config import (
+    JOINT_ANGLE_MAX_DEG,
+    JOINT_ANGLE_MIN_DEG,
+    JOINT_HOME_ANGLES,
+    MOTION_STEP_DEG_PER_TICK,
+    NUM_JOINTS,
+    SERVO_PWM_MAX_US,
+    SERVO_PWM_MIN_US,
+)
+
+from pins import (
+    SERVO_END_EFFECTOR,
+    SERVO_FOREARM,
+    SERVO_HAND,
+    SERVO_UPPER_ARM,
+    SERVO_WAIST,
+)
 
 
 class MotionController:
+    """Five-DOF arm + gripper. Joint order: waist, upper_arm, forearm, hand, end_effector."""
+
     def __init__(self):
-        self.servos = [
-            Servo(4),   # base
-            Servo(22),  # shoulder
-            Servo(23),  # elbow
+        pins = [
+            SERVO_WAIST,
+            SERVO_UPPER_ARM,
+            SERVO_FOREARM,
+            SERVO_HAND,
+            SERVO_END_EFFECTOR,
         ]
-        self.joint_names = ["Base", "Shoulder", "Elbow"]
-        self.current_angles = [90, 90, 90]
-        self.target_angles = [90, 90, 90]
+        self.servos = []
+        for i in range(NUM_JOINTS):
+            self.servos.append(
+                Servo(
+                    pins[i],
+                    min_us=SERVO_PWM_MIN_US[i],
+                    max_us=SERVO_PWM_MAX_US[i],
+                )
+            )
+        self.joint_names = [
+            "waist",
+            "upper_arm",
+            "forearm",
+            "hand",
+            "end_effector",
+        ]
+        self.current_angles = [self._clamp_joint(i, a) for i, a in enumerate(JOINT_HOME_ANGLES)]
+        self.target_angles = list(self.current_angles)
         self.poses = {
-            "home": [90, 90, 90],
-            "ready": [90, 60, 120],
-            "down": [90, 120, 140],
+            "home": [self._clamp_joint(i, a) for i, a in enumerate(JOINT_HOME_ANGLES)],
+            "ready": [
+                self._clamp_joint(0, 90),
+                self._clamp_joint(1, 60),
+                self._clamp_joint(2, 120),
+                self._clamp_joint(3, 90),
+                self._clamp_joint(4, 90),
+            ],
+            "down": [
+                self._clamp_joint(0, 90),
+                self._clamp_joint(1, 120),
+                self._clamp_joint(2, 140),
+                self._clamp_joint(3, 90),
+                self._clamp_joint(4, 90),
+            ],
         }
         self.selected_joint = None
+        self._step = max(1, int(MOTION_STEP_DEG_PER_TICK))
         log("Motion controller initialized")
 
+    def _clamp_joint(self, joint_idx, angle):
+        lo = JOINT_ANGLE_MIN_DEG[joint_idx]
+        hi = JOINT_ANGLE_MAX_DEG[joint_idx]
+        a = float(angle)
+        if a < lo:
+            return lo
+        if a > hi:
+            return hi
+        return a
+
     def select_joint(self, joint_id):
+        if joint_id < 0 or joint_id >= NUM_JOINTS:
+            log("Invalid joint_id: " + str(joint_id))
+            return
         self.selected_joint = joint_id
         log("Selected joint: " + self.joint_names[joint_id])
 
@@ -32,17 +93,17 @@ class MotionController:
             return
         idx = self.selected_joint
         new_angle = self.current_angles[idx] + (step * direction)
-        new_angle = max(0, min(180, new_angle))
+        new_angle = self._clamp_joint(idx, new_angle)
         self.current_angles[idx] = new_angle
         self.target_angles[idx] = new_angle
         self.servos[idx].write(new_angle)
         log("[NUDGE] " + self.joint_names[idx] + " -> " + str(new_angle))
 
     def move_to_pose(self, angles):
-        if len(angles) != 3:
+        if len(angles) != NUM_JOINTS:
             return
-        self.target_angles = angles
-        log("Moving to pose: " + str(angles))
+        self.target_angles = [self._clamp_joint(i, angles[i]) for i in range(NUM_JOINTS)]
+        log("Moving to pose: " + str(self.target_angles))
 
     def move_to_named_pose(self, name):
         if name not in self.poses:
@@ -53,15 +114,17 @@ class MotionController:
         self.move_to_pose(angles)
 
     def update(self):
-        for i in range(3):
+        step = self._step
+        for i in range(NUM_JOINTS):
             current = self.current_angles[i]
             target = self.target_angles[i]
             if current == target:
                 continue
             if current < target:
-                current += 1
+                current = min(current + step, target)
             else:
-                current -= 1
+                current = max(current - step, target)
+            current = self._clamp_joint(i, current)
             self.current_angles[i] = current
             self.servos[i].write(current)
 

@@ -1,11 +1,11 @@
-# DUM-E entrypoint: live loop = buttons + activity/state + motion + behavior + serial input.
-# handle_command() is wired into the loop via poll_serial(); also callable from REPL directly.
+# DUM-E entrypoint: activity/state + motion + behavior + serial input.
+# Commands: dashboard / USB serial / REPL — no physical buttons by default.
 
 import time
 import select
 import sys
 
-from config import LOOP_DELAY_MS, IDLE_TIMEOUT_MS, SLEEP_TIMEOUT_MS
+from config import LOOP_DELAY_MS, IDLE_TIMEOUT_MS, SLEEP_TIMEOUT_MS, USE_PHYSICAL_BUTTONS
 
 from utils.logger import log, get_logs
 
@@ -18,8 +18,6 @@ from modules.intent_parser import IntentParser
 from modules.behavior_engine import BehaviorEngine
 
 from modules.safety_manager import SafetyManager
-
-from drivers.pir import Button
 
 from modules.motion_controller import MotionController
 
@@ -37,14 +35,21 @@ last_activity_ms = reset_timer()
 # Give behavior engine access to servo control for expression behaviors.
 behavior_engine.set_motion_controller(motion_controller)
 
-btn_j1 = Button(12)
-btn_j2 = Button(13)
-btn_j3 = Button(27)
-btn_up = Button(25)
-btn_down = Button(18)
+if USE_PHYSICAL_BUTTONS:
+    from drivers.pir import Button
+    from pins import BTN_DOWN, BTN_J1, BTN_J2, BTN_J3, BTN_J4, BTN_J5, BTN_UP
+
+    btn_j1 = Button(BTN_J1)
+    btn_j2 = Button(BTN_J2)
+    btn_j3 = Button(BTN_J3)
+    btn_j4 = Button(BTN_J4)
+    btn_j5 = Button(BTN_J5)
+    btn_up = Button(BTN_UP)
+    btn_down = Button(BTN_DOWN)
+else:
+    btn_j1 = btn_j2 = btn_j3 = btn_j4 = btn_j5 = btn_up = btn_down = None
 
 # Non-blocking serial line reader: accumulates chars until \n or \r.
-# select.poll(0) returns immediately with no blocking on the main loop.
 _serial_poll = select.poll()
 _serial_poll.register(sys.stdin, select.POLLIN)
 _serial_buf = []
@@ -84,8 +89,6 @@ def handle_command(raw_command):
         log("Empty command ignored")
         return
 
-    # Trigger the expression that matches the emotional tone of the input.
-    # Fires even for unknown commands (e.g. "hey" runs express_greet before logging unknown).
     sentiment = result.get("sentiment", "NEUTRAL")
     expr_name = _SENTIMENT_BEHAVIOR.get(sentiment)
     if expr_name is not None:
@@ -103,7 +106,6 @@ def handle_command(raw_command):
 
     command_router.route(cmd)
 
-    # After a pick or place action completes, present the held object.
     if cmd.action in (Actions.PICK_OBJECT, Actions.PLACE_OBJECT):
         behavior_engine.run_behavior("express_present")
 
@@ -146,16 +148,10 @@ command_router = CommandRouter(
 
 
 def poll_serial():
-    """Non-blocking read of one character from stdin; return a complete line or None.
-
-    Accumulates characters in _serial_buf until a newline/carriage-return is
-    received, then returns the assembled line and clears the buffer.
-    Returns None on every tick where a full line is not yet ready.
-    Only reads when select.poll() reports data to avoid any blocking.
-    """
+    """Non-blocking read of one character from stdin; return a complete line or None."""
     global _serial_buf
 
-    events = _serial_poll.poll(0)  # 0 ms timeout — never blocks
+    events = _serial_poll.poll(0)
     if not events:
         return None
 
@@ -165,14 +161,17 @@ def poll_serial():
             line = ''.join(_serial_buf)
             _serial_buf = []
             return line
-        return None  # bare newline with no content
+        return None
     else:
         _serial_buf.append(char)
         return None
 
 
 def handle_buttons():
-    """Manual mode only: joint select + nudge (no poses, no router)."""
+    """Manual joint select + nudge — only when USE_PHYSICAL_BUTTONS is True."""
+    if not USE_PHYSICAL_BUTTONS:
+        return
+
     if btn_j1.pressed():
         motion_controller.select_joint(0)
         mark_activity()
@@ -181,6 +180,12 @@ def handle_buttons():
         mark_activity()
     if btn_j3.pressed():
         motion_controller.select_joint(2)
+        mark_activity()
+    if btn_j4.pressed():
+        motion_controller.select_joint(3)
+        mark_activity()
+    if btn_j5.pressed():
+        motion_controller.select_joint(4)
         mark_activity()
 
     if btn_up.held():
@@ -192,8 +197,6 @@ def handle_buttons():
 
 
 def loop():
-    # Serial input is checked first: a full line triggers the full parse → sentiment →
-    # command pipeline before any motion or state updates run this tick.
     line = poll_serial()
     if line:
         handle_command(line)

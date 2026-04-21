@@ -9,6 +9,23 @@ Document major parts as you wire and test them. Update the **Status** column as 
 | ESP32 DevKit V1 | 1 | Main MicroPython target | planned |
 | ESP32-CAM | 1 | Vision / future perception | planned |
 
+## Arm kinematics (CAD / firmware names)
+
+Mechanical **base** has no motor. Servos are numbered in order from the base up:
+
+| Servo | Name | Role |
+|-------|------|------|
+| 1 | `waist` | Base rotation (waist ↔ ground) |
+| 2 | `upper_arm` | Waist ↔ upper arm link |
+| 3 | `forearm` | Upper arm ↔ forearm |
+| 4 | `hand` | Forearm ↔ hand |
+| 5 | `end_effector` | Gripper (open/close) |
+
+Firmware joint order (arrays, `JointState.name`, logs):  
+`waist`, `upper_arm`, `forearm`, `hand`, `end_effector`.
+
+Servo GPIOs are defined in `src/pins.py` — update when wiring is final. **No panel buttons** in the current build; use the dashboard / serial (`USE_PHYSICAL_BUTTONS = False` in `config.py`). See `docs/firmware_setup.md` for PWM and motion tuning.
+
 ## Motion
 
 | Component | Qty | Notes | Status |

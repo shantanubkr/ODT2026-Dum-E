@@ -5,7 +5,7 @@ from utils.logger import log
 
 from utils.timers import reset_timer, has_elapsed, current_millis
 
-from config import GREETING_DURATION_MS, THINKING_DURATION_MS
+from config import GREETING_DURATION_MS, JOINT_HOME_ANGLES, THINKING_DURATION_MS
 
 
 class BehaviorEngine:
@@ -30,7 +30,7 @@ class BehaviorEngine:
         #             used as the "return to" position after the expression ends.
         self._expr_phase = 0
         self._expr_phase_start = 0
-        self._expr_base = [90, 90, 90]
+        self._expr_base = list(JOINT_HOME_ANGLES)
 
         log("Behavior engine initialized")
 
@@ -92,6 +92,18 @@ class BehaviorEngine:
         self._expr_phase += 1
         self._expr_phase_start = current_millis()
 
+    def _pose_waist(self, waist_deg):
+        """Copy _expr_base with waist (index 0) replaced."""
+        p = list(self._expr_base)
+        p[0] = max(0, min(180, waist_deg))
+        return p
+
+    def _pose_upper_arm(self, ua_deg):
+        """Copy _expr_base with upper_arm (index 1) replaced."""
+        p = list(self._expr_base)
+        p[1] = max(0, min(180, ua_deg))
+        return p
+
     # ------------------------------------------------------------------
     # Existing timed behaviors
     # ------------------------------------------------------------------
@@ -119,119 +131,92 @@ class BehaviorEngine:
     # ------------------------------------------------------------------
 
     def express_happy_behavior(self):
-        """Rapid small oscillation of the base joint ±10°, 3 full swings, ~1.5 s total.
+        """Rapid small oscillation of the waist ±10°, 3 full swings, ~1.5 s total.
 
         6 half-swing phases × 250 ms each, then a return phase → idle.
-        Each phase calls _move() every tick (idempotent: just sets target_angles)
-        and advances when the phase timer elapses.
         """
-        b0, b1, b2 = self._expr_base[0], self._expr_base[1], self._expr_base[2]
-        # Alternating ±10° offsets from base, 6 half-swings = 3 full oscillations.
+        b0 = self._expr_base[0]
         offsets = [+10, -10, +10, -10, +10, -10]
 
         if self._expr_phase < len(offsets):
             angle = max(0, min(180, b0 + offsets[self._expr_phase]))
-            self._move([angle, b1, b2])
+            self._move(self._pose_waist(angle))
             if self._phase_elapsed(250):
                 self._next_phase()
         elif self._expr_phase == len(offsets):
-            # Return to the position the arm was in before the expression.
             self._move(self._expr_base)
             if self._phase_elapsed(400):
                 self.set_behavior("idle")
 
     def express_sad_behavior(self):
-        """Slow droop: lower shoulder joint to minimum, hold 1 s, return slowly.
-
-        Phase 0: set shoulder target to 0° (droop down), wait for travel (up to 5 s).
-        Phase 1: hold at low position for 1 s.
-        Phase 2: set shoulder back to saved angle, wait for travel (up to 5 s).
-        Phase 3: transition to idle.
-        Travel time depends on how far the joint has to move at 1°/50 ms.
-        """
-        b0, b1, b2 = self._expr_base[0], self._expr_base[1], self._expr_base[2]
+        """Slow droop: lower upper_arm joint to minimum, hold 1 s, return slowly."""
 
         if self._expr_phase == 0:
-            # Kick off the droop to shoulder minimum on first entry.
-            self._move([b0, 0, b2])
+            self._move(self._pose_upper_arm(0))
             self._next_phase()
         elif self._expr_phase == 1:
-            # Wait long enough for the droop to complete (max 180° × 50 ms = 9 s).
             if self._phase_elapsed(5000):
                 self._next_phase()
         elif self._expr_phase == 2:
-            # Hold at the low position for 1 s, then start returning.
             if self._phase_elapsed(1000):
                 self._move(self._expr_base)
                 self._next_phase()
         elif self._expr_phase == 3:
-            # Wait for return travel to complete.
             if self._phase_elapsed(5000):
                 self.set_behavior("idle")
 
     def express_greet_behavior(self):
-        """Wave: swing base joint left 30°, right 30°, left 30°, back to center. Moderate speed.
-
-        4 swing phases × 700 ms; arm returns to its saved base angle at the end.
-        Each phase sets its target every tick (idempotent) and advances when the timer elapses.
-        """
-        b0, b1, b2 = self._expr_base[0], self._expr_base[1], self._expr_base[2]
+        """Wave: swing waist left/right ±30°, then center. 4 phases × 700 ms."""
+        b0 = self._expr_base[0]
         swing_targets = [
-            max(0, min(180, b0 - 30)),  # phase 0: left
-            max(0, min(180, b0 + 30)),  # phase 1: right
-            max(0, min(180, b0 - 30)),  # phase 2: left again
-            b0,                          # phase 3: back to center
+            max(0, min(180, b0 - 30)),
+            max(0, min(180, b0 + 30)),
+            max(0, min(180, b0 - 30)),
+            b0,
         ]
         PHASE_MS = 700
 
         if self._expr_phase < len(swing_targets):
-            self._move([swing_targets[self._expr_phase], b1, b2])
+            self._move(self._pose_waist(swing_targets[self._expr_phase]))
             if self._phase_elapsed(PHASE_MS):
                 self._next_phase()
         else:
             self.set_behavior("idle")
 
     def express_bye_behavior(self):
-        """Slow wave (same pattern as greet but 1200 ms/phase), then rest at home.
-
-        After the wave returns to center the arm moves all joints to [90, 90, 90]
-        to signal a proper sleep/rest posture before transitioning to idle.
-        Phases 0-3: slow wave. Phase 4: move to home. Phase 5: wait for travel → idle.
-        """
-        b0, b1, b2 = self._expr_base[0], self._expr_base[1], self._expr_base[2]
+        """Slow wave on waist (1200 ms/phase), then move to JOINT_HOME_ANGLES."""
+        b0 = self._expr_base[0]
         swing_targets = [
-            max(0, min(180, b0 - 30)),  # phase 0: left
-            max(0, min(180, b0 + 30)),  # phase 1: right
-            max(0, min(180, b0 - 30)),  # phase 2: left again
-            b0,                          # phase 3: back to center
+            max(0, min(180, b0 - 30)),
+            max(0, min(180, b0 + 30)),
+            max(0, min(180, b0 - 30)),
+            b0,
         ]
         PHASE_MS = 1200
 
         if self._expr_phase < len(swing_targets):
-            self._move([swing_targets[self._expr_phase], b1, b2])
+            self._move(self._pose_waist(swing_targets[self._expr_phase]))
             if self._phase_elapsed(PHASE_MS):
                 self._next_phase()
         elif self._expr_phase == len(swing_targets):
-            # Wave complete — move all joints to home/rest position.
             if self._phase_elapsed(PHASE_MS):
-                self._move([90, 90, 90])
+                self._move(list(JOINT_HOME_ANGLES))
                 self._next_phase()
         else:
-            # Wait for home travel to complete (max 90° × 50 ms = 4.5 s), then idle.
             if self._phase_elapsed(3000):
                 self.set_behavior("idle")
 
     def express_present_behavior(self):
-        """Extend arm to a forward-facing presentation pose and hold indefinitely.
+        """Forward presentation pose: waist center, upper_arm 45°, forearm level, hand open.
 
-        Pose: base = 90° (center), shoulder = 45° (mid height), elbow = 0° (level).
-        This behavior does NOT auto-transition; it holds until the next command
-        explicitly calls set_behavior() or run_behavior().
+        Does NOT auto-transition.
         """
         if self._expr_phase == 0:
-            self._move([90, 45, 0])
+            self._move(
+                [90, 45, 0, JOINT_HOME_ANGLES[3], JOINT_HOME_ANGLES[4]]
+            )
             self._next_phase()
-        # Phase 1+: do nothing — hold until externally interrupted.
+        # Phase 1+: hold until externally interrupted.
 
     # ------------------------------------------------------------------
     # Main dispatch

@@ -70,10 +70,11 @@ class LaptopMotionController:
     """Fallback / simulation only: same API as firmware MotionController for CommandRouter."""
 
     def __init__(self) -> None:
+        # Order: waist, upper_arm, forearm, hand, end_effector
         self.poses = {
-            "home": [90, 90, 90],
-            "ready": [90, 70, 110],
-            "down": [90, 110, 140],
+            "home": [90, 90, 90, 90, 90],
+            "ready": [90, 60, 120, 90, 90],
+            "down": [90, 120, 140, 90, 90],
         }
         self.current_angles = list(self.poses["home"])
         self.target_angles = list(self.poses["home"])
@@ -86,9 +87,9 @@ class LaptopMotionController:
         self.move_to_pose(list(self.poses[name]))
 
     def move_to_pose(self, angles: list) -> None:
-        if len(angles) != 3:
+        if len(angles) != 5:
             return
-        self.target_angles = [int(angles[0]), int(angles[1]), int(angles[2])]
+        self.target_angles = [int(angles[i]) for i in range(5)]
         log("Sim move target: " + str(self.target_angles))
 
     def update(self) -> None:
@@ -102,9 +103,9 @@ class BridgeMotionAdapter:
     """Presents MotionController-shaped API to CommandRouter; forwards motion to RobotBridge."""
 
     poses = {
-        "home": [90, 90, 90],
-        "ready": [90, 70, 110],
-        "down": [90, 110, 140],
+        "home": [90, 90, 90, 90, 90],
+        "ready": [90, 60, 120, 90, 90],
+        "down": [90, 120, 140, 90, 90],
     }
 
     def __init__(self, robot_bridge: RobotBridge) -> None:
@@ -130,8 +131,8 @@ class BridgeMotionAdapter:
 
     def move_to_pose(self, angles: list) -> None:
         log("[BridgeMotionAdapter] move_to_pose not implemented for hardware bridge yet")
-        if len(angles) == 3:
-            self._pose = [int(angles[0]), int(angles[1]), int(angles[2])]
+        if len(angles) == 5:
+            self._pose = [int(angles[i]) for i in range(5)]
 
     def update(self) -> None:
         pass

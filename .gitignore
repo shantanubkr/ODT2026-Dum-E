@@ -1,0 +1,6 @@
+.DS_Store
+**/.DS_Store
+
+# Large / local binary artifacts (not for Git)
+**/desktop_app/sounds/*.pkg
+**/desktop_app/sounds/*.bin

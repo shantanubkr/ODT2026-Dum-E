@@ -1,0 +1,144 @@
+<?xml version="1.0" ?>
+<robot name="dum-e" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+<xacro:include filename="$(find dum_e_description)/urdf/materials.xacro" />
+<xacro:include filename="$(find dum_e_description)/urdf/dum-e.trans" />
+<xacro:include filename="$(find dum_e_description)/urdf/dum-e.gazebo" />
+<link name="base_link">
+  <inertial>
+    <origin xyz="-7.764782332920779e-05 0.1609310905474023 0.014761048745804172" rpy="0 0 0"/>
+    <mass value="1.3974709990038208"/>
+    <inertia ixx="0.001158" iyy="0.001185" izz="0.001921" ixy="-0.0" iyz="2e-06" ixz="3e-06"/>
+  </inertial>
+  <visual>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="file://$(find dum_e_description)/meshes/base_link.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="file://$(find dum_e_description)/meshes/base_link.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="Upper_arm_1">
+  <inertial>
+    <origin xyz="-0.02962404346667396 0.049926041358079126 0.05670320856759474" rpy="0 0 0"/>
+    <mass value="1.9359035819352775"/>
+    <inertia ixx="0.007653" iyy="0.005008" izz="0.0039" ixy="-6.8e-05" iyz="-0.003163" ixz="-8.9e-05"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.025 -0.139 -0.0625" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="file://$(find dum_e_description)/meshes/Upper_arm_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.025 -0.139 -0.0625" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="file://$(find dum_e_description)/meshes/Upper_arm_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="Waist_1">
+  <inertial>
+    <origin xyz="-0.004147256076267503 0.0002028414170002768 0.029023285139476503" rpy="0 0 0"/>
+    <mass value="0.4246040193501383"/>
+    <inertia ixx="0.000236" iyy="0.000207" izz="0.000298" ixy="-2e-06" iyz="1e-06" ixz="-2e-05"/>
+  </inertial>
+  <visual>
+    <origin xyz="-0.0 -0.1495 -0.04" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="file://$(find dum_e_description)/meshes/Waist_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="-0.0 -0.1495 -0.04" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="file://$(find dum_e_description)/meshes/Waist_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="Hand_1">
+  <inertial>
+    <origin xyz="-0.027205956143816462 -0.02890672149519427 0.005097492310937646" rpy="0 0 0"/>
+    <mass value="0.7916383707029127"/>
+    <inertia ixx="0.001035" iyy="0.00049" izz="0.001045" ixy="-5.2e-05" iyz="0.000101" ixz="9e-06"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.025 -0.148021 -0.321567" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="file://$(find dum_e_description)/meshes/Hand_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.025 -0.148021 -0.321567" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="file://$(find dum_e_description)/meshes/Hand_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="Forearm_1">
+  <inertial>
+    <origin xyz="0.03220712977162327 -0.04356481414121521 0.0656408189083143" rpy="0 0 0"/>
+    <mass value="2.210709102294326"/>
+    <inertia ixx="0.009931" iyy="0.007224" izz="0.004389" ixy="-5e-05" iyz="0.003869" ixz="6.2e-05"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.025 -0.242392 -0.184931" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="file://$(find dum_e_description)/meshes/Forearm_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.025 -0.242392 -0.184931" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="file://$(find dum_e_description)/meshes/Forearm_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<joint name="Revolute 7" type="revolute">
+  <origin xyz="-0.025 -0.0105 0.0225" rpy="0 0 0"/>
+  <parent link="Waist_1"/>
+  <child link="Upper_arm_1"/>
+  <axis xyz="-1.0 0.0 0.0"/>
+  <limit upper="1.570796" lower="-0.785398" effort="100" velocity="100"/>
+</joint>
+
+<joint name="Revolute 8" type="revolute">
+  <origin xyz="0.0 0.1495 0.04" rpy="0 0 0"/>
+  <parent link="base_link"/>
+  <child link="Waist_1"/>
+  <axis xyz="0.0 0.0 1.0"/>
+  <limit upper="1.570796" lower="-1.570796" effort="100" velocity="100"/>
+</joint>
+
+<joint name="Revolute 9" type="revolute">
+  <origin xyz="0.0 -0.094371 0.136636" rpy="0 0 0"/>
+  <parent link="Forearm_1"/>
+  <child link="Hand_1"/>
+  <axis xyz="-1.0 0.0 0.0"/>
+  <limit upper="1.570796" lower="-1.570796" effort="100" velocity="100"/>
+</joint>
+
+<joint name="Revolute 10" type="revolute">
+  <origin xyz="0.0 0.103392 0.122431" rpy="0 0 0"/>
+  <parent link="Upper_arm_1"/>
+  <child link="Forearm_1"/>
+  <axis xyz="1.0 0.0 0.0"/>
+  <limit upper="1.570796" lower="-1.570796" effort="100" velocity="100"/>
+</joint>
+
+</robot>
