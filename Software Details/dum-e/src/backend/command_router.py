@@ -24,6 +24,18 @@ class CommandRouter:
 
         log("Command Router initialized")
 
+    def _maybe_exit_sad_mood(self, action):
+        """Any substantive command leaves SAD (status/history are passive)."""
+        if action in (Actions.STATUS, Actions.HISTORY):
+            return
+        if not self.state_machine.is_state(States.SAD):
+            return
+        self.state_machine.change_state(States.ACTIVE)
+        if self.behavior_engine is not None:
+            b = self.behavior_engine.get_behavior()
+            if b in ("express_sad", "sad_hold"):
+                self.behavior_engine.set_behavior("idle")
+
     def _can_move(self):
         if self.safety_manager is None:
             return True
@@ -32,6 +44,8 @@ class CommandRouter:
     def route(self, command):
         action = command.action
         log("Routing command: " + str(command.to_dict()))
+
+        self._maybe_exit_sad_mood(action)
 
         if action == Actions.MOVE_HOME:
             if not self._can_move():
@@ -59,6 +73,9 @@ class CommandRouter:
             if self.safety_manager is not None:
                 self.safety_manager.trigger_emergency_stop()
             self.state_machine.change_state(States.ERROR)
+            if self.behavior_engine is not None:
+                self.behavior_engine.set_behavior("none")
+                self.behavior_engine.cancel_idle_inspect()
             return
 
         if action == Actions.RESET:
@@ -110,6 +127,33 @@ class CommandRouter:
                 self.behavior_engine.set_behavior("greeting")
             return
 
+        if action == Actions.DANCE:
+            if not self._can_move():
+                log("DANCE blocked by safety manager")
+                return
+            self.state_machine.change_state(States.ACTIVE)
+            if self.behavior_engine is not None:
+                self.behavior_engine.set_behavior("dancing")
+            return
+
+        if action == Actions.IDLE_LOOK_AT:
+            if not self._can_move():
+                log("IDLE_LOOK_AT blocked by safety manager")
+                return
+            if self.behavior_engine is None:
+                return
+            if self.behavior_engine.get_behavior() != "idle":
+                log("IDLE_LOOK_AT ignored (behavior is not idle)")
+                return
+            md = command.metadata or {}
+            w = md.get("waist")
+            h = md.get("hand")
+            if w is None or h is None:
+                log("IDLE_LOOK_AT missing waist/hand in metadata")
+                return
+            self.behavior_engine.begin_idle_inspect(float(w), float(h))
+            return
+
         log("Unhandled command: " + str(action))
 
 
@@ -139,6 +183,8 @@ def build_command_from_parse_result(result, source="debug"):
             return Command(Actions.STATUS, source=source)
         if word == "reset":
             return Command(Actions.RESET, source=source)
+        if word == "dance":
+            return Command(Actions.DANCE, source=source)
 
     if command_type == "move":
         args = result.get("args") or []

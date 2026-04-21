@@ -20,6 +20,12 @@ from pins import (
     SERVO_WAIST,
 )
 
+try:
+    from robot_kinematics import firmware_deg_for_named_pose, NAMED_POSE_KEYS
+except ImportError:
+    firmware_deg_for_named_pose = None
+    NAMED_POSE_KEYS = ("home", "ready", "down")
+
 
 class MotionController:
     """Five-DOF arm + gripper. Joint order: waist, upper_arm, forearm, hand, end_effector."""
@@ -50,23 +56,17 @@ class MotionController:
         ]
         self.current_angles = [self._clamp_joint(i, a) for i, a in enumerate(JOINT_HOME_ANGLES)]
         self.target_angles = list(self.current_angles)
-        self.poses = {
-            "home": [self._clamp_joint(i, a) for i, a in enumerate(JOINT_HOME_ANGLES)],
-            "ready": [
-                self._clamp_joint(0, 90),
-                self._clamp_joint(1, 60),
-                self._clamp_joint(2, 120),
-                self._clamp_joint(3, 90),
-                self._clamp_joint(4, 90),
-            ],
-            "down": [
-                self._clamp_joint(0, 90),
-                self._clamp_joint(1, 120),
-                self._clamp_joint(2, 140),
-                self._clamp_joint(3, 90),
-                self._clamp_joint(4, 90),
-            ],
-        }
+        self.poses = {}
+        for name in NAMED_POSE_KEYS:
+            if firmware_deg_for_named_pose is not None:
+                raw = firmware_deg_for_named_pose(name)
+            elif name == "home":
+                raw = list(JOINT_HOME_ANGLES)
+            elif name == "ready":
+                raw = [90, 60, 120, 90, 90]
+            else:
+                raw = [90, 120, 140, 90, 90]
+            self.poses[name] = [self._clamp_joint(i, raw[i]) for i in range(NUM_JOINTS)]
         self.selected_joint = None
         self._step = max(1, int(MOTION_STEP_DEG_PER_TICK))
         log("Motion controller initialized")

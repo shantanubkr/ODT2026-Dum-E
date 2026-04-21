@@ -1,44 +1,46 @@
-# DUM-E — who does what (after `dum_e_description` setup)
+# DUM-E — repo map & follow-ups
 
-## Done in repo
+## In repo today
 
-- **`ros2_ws/src/dum_e_description/`** — ament CMake package with URDF/xacro + `meshes/` (STL filenames aligned with `dum-e.xacro`).
-- All `$(find dum-e_description)` strings updated to **`dum_e_description`**.
-- **`dum_hardware/urdf/dum-e.xacro`** updated the same way (kept in sync for reference).
-- **`dum_hardware/README.md`** — points to the canonical package.
+| Area | Contents |
+|------|----------|
+| **`ros2_ws/src/dum_e_description/`** | ROS 2 package: URDF/xacro, meshes, **`launch/view_robot.launch.py`** (`robot_state_publisher` + joint GUI + RViz — see package README). |
+| **`dum_hardware/urdf/`** | Reference xacro kept in sync with the description package for offline diff / CAD handoff. |
+| **`src/`** | ESP32 MicroPython firmware: servos, parser, router, behaviors, safety. |
+| **`desktop_app/`** | Dashboard + CPython runtime bridging **`CommandRouter`** and optional **`RobotBridge`** (ROS 2). |
 
-## Shantanu (software)
+## ROS / simulation follow-ups (software)
 
-| Task | Status |
+| Task | Notes |
 |------|--------|
-| `colcon build` on Ubuntu/WSL with ROS 2 Humble | Run locally when you’re at the ROS machine |
-| Add **`launch/`**: `robot_state_publisher` + joint source + optional RViz | Pending |
-| Map **`JointState` names** (`Revolute 7`–`10` vs `waist` / firmware order) in `dum_e_controller` or a small bridge node | Pending |
-| Fifth joint (`end_effector`) in firmware only — publish a constant or extra angle in `/joint_states` if the dashboard needs 5 | Optional |
-| Update / test **`dum_e_state_manager`** against 4 joint names from URDF | Pending |
-| Gazebo: **`dum-e.trans`** is ROS 1 style — replace with **ros2_control** when you simulate | Future |
+| Joint name mapping | URDF uses names like **`Revolute 7`–`10`**; firmware uses **`waist`**, **`upper_arm`**, etc. Bridge or rename in **`dum_e_controller`** / RViz as needed. |
+| Fifth axis in `/joint_states` | URDF has **four** revolute joints; gripper is **firmware-only** — publish a constant or extra angle if the dashboard needs five joints. |
+| **`dum_e_state_manager`** | Align with live topic names and **`dum_e_description`** after testing on a ROS machine. |
+| Gazebo / **ros2_control** | **`dum-e.trans`** is legacy-style; replace when you add proper simulation. |
 
-## Avyukt (hardware)
+## Hardware / CAD (coordination)
 
-| Task | Status |
+| Task | Notes |
 |------|--------|
-| Deliver final STLs / xacro | **Done** — geometry copied into `dum_e_description/meshes/` |
-| If CAD changes later | Re-export meshes + xacro and hand off a zip; we merge into `dum_e_description` again |
-| Wiring / power | Physical; not tracked in this doc |
+| STLs / meshes | **Done** in **`dum_e_description/meshes/`** per current CAD. |
+| Future CAD changes | Re-export meshes + xacro and merge into **`dum_e_description`**. |
+| Wiring / power | Physical; tracked in **`docs/hardware.md`**. |
 
-## Quick build check (Shantanu)
+## Quick build check (ROS 2 Humble)
 
 ```bash
 cd ros2_ws
 source /opt/ros/humble/setup.bash
 colcon build --packages-select dum_e_description
 source install/setup.bash
-```
-
-Then verify:
-
-```bash
 ros2 pkg prefix dum_e_description
 ```
 
-If that prints a path under `install/`, meshes resolve for `xacro` + RViz.
+Optional visualization:
+
+```bash
+source install/setup.bash
+ros2 launch dum_e_description view_robot.launch.py
+```
+
+Do **not** run that launch at the same time as another node that also publishes **`/joint_states`** unless you intend to (see **`dum_e_description/README.md`**).

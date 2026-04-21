@@ -22,6 +22,7 @@ class CommandParser:
             "status",
             "history",
             "reset",
+            "dance",
         ]  # Exact-match vocabulary
         log("Command parser initialized")  # Startup visibility
 

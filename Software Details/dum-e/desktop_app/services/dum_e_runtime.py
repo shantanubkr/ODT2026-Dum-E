@@ -55,27 +55,34 @@ _ensure_src_path()
 
 from backend.command_router import CommandRouter, build_command_from_parse_result
 from backend.command_schema import Actions, Command
+from config import SLEEP_TIMEOUT_MS
+from robot_kinematics import firmware_deg_for_named_pose
 from interfaces.robot_bridge import RobotBridge
 from modules.behavior_engine import BehaviorEngine
 from modules.intent_parser import IntentParser
 from modules.safety_manager import SafetyManager
-from modules.state_machine import StateMachine
+from modules.state_machine import StateMachine, States
 from utils.logger import get_logs, log
+from utils.timers import has_elapsed, reset_timer
 
 # Set DUM_E_SIM_MOTION=1 to use LaptopMotionController instead of RobotBridge + adapter.
 USE_SIM_MOTION = os.environ.get("DUM_E_SIM_MOTION", "").lower() in ("1", "true", "yes")
+
+
+def _firmware_named_poses() -> dict[str, list[int]]:
+    return {
+        "home": list(firmware_deg_for_named_pose("home")),
+        "ready": list(firmware_deg_for_named_pose("ready")),
+        "down": list(firmware_deg_for_named_pose("down")),
+    }
 
 
 class LaptopMotionController:
     """Fallback / simulation only: same API as firmware MotionController for CommandRouter."""
 
     def __init__(self) -> None:
-        # Order: waist, upper_arm, forearm, hand, end_effector
-        self.poses = {
-            "home": [90, 90, 90, 90, 90],
-            "ready": [90, 60, 120, 90, 90],
-            "down": [90, 120, 140, 90, 90],
-        }
+        # Order: waist, upper_arm, forearm, hand, end_effector — URDF-aligned (robot_kinematics)
+        self.poses = _firmware_named_poses()
         self.current_angles = list(self.poses["home"])
         self.target_angles = list(self.poses["home"])
         log("LaptopMotionController initialized (simulation)")
@@ -102,11 +109,7 @@ class LaptopMotionController:
 class BridgeMotionAdapter:
     """Presents MotionController-shaped API to CommandRouter; forwards motion to RobotBridge."""
 
-    poses = {
-        "home": [90, 90, 90, 90, 90],
-        "ready": [90, 60, 120, 90, 90],
-        "down": [90, 120, 140, 90, 90],
-    }
+    poses = _firmware_named_poses()
 
     def __init__(self, robot_bridge: RobotBridge) -> None:
         self._bridge = robot_bridge
@@ -130,9 +133,11 @@ class BridgeMotionAdapter:
             log("[BridgeMotionAdapter] Unknown pose: " + str(name))
 
     def move_to_pose(self, angles: list) -> None:
-        log("[BridgeMotionAdapter] move_to_pose not implemented for hardware bridge yet")
-        if len(angles) == 5:
-            self._pose = [int(angles[i]) for i in range(5)]
+        if len(angles) != 5:
+            return
+        deg = [int(round(float(angles[i]))) for i in range(5)]
+        self._bridge.send_pose_degrees(deg)
+        self._pose = list(deg)
 
     def update(self) -> None:
         pass
@@ -147,7 +152,7 @@ class BridgeMotionAdapter:
 
 
 class _RouterWithBridgeNotify:
-    """CommandRouter is unchanged; this facade notifies RobotBridge for STOP/GREET/RESET."""
+    """CommandRouter is unchanged; this facade notifies RobotBridge for STOP/GREET/DANCE/RESET."""
 
     def __init__(self, inner: CommandRouter, bridge: RobotBridge) -> None:
         self._inner = inner
@@ -161,12 +166,37 @@ class _RouterWithBridgeNotify:
             self._bridge.send(cmd)
         elif cmd.action == Actions.GREET:
             self._bridge.send(cmd)
+        elif cmd.action == Actions.DANCE:
+            self._bridge.send(cmd)
 
 
 state_machine = StateMachine()
 safety_manager = SafetyManager()
 behavior_engine = BehaviorEngine()
 intent_parser = IntentParser()
+behavior_engine.set_runtime_guards(state_machine, safety_manager)
+state_machine.change_state(States.ACTIVE)
+behavior_engine.set_behavior("idle")
+_last_activity_ms = reset_timer()
+
+
+def mark_activity() -> None:
+    global _last_activity_ms
+    _last_activity_ms = reset_timer()
+    if state_machine.is_state(States.SLEEP):
+        state_machine.change_state(States.ACTIVE)
+        behavior_engine.set_behavior("idle")
+        log("Desktop: woke from SLEEP due to activity")
+
+
+def _update_desktop_inactivity() -> None:
+    if state_machine.is_state(States.ERROR):
+        return
+    if has_elapsed(_last_activity_ms, SLEEP_TIMEOUT_MS):
+        if not state_machine.is_state(States.SLEEP):
+            state_machine.change_state(States.SLEEP)
+            behavior_engine.set_behavior("none")
+            log("Desktop: entered SLEEP due to inactivity")
 
 robot_bridge: RobotBridge | None = None
 if USE_SIM_MOTION:
@@ -175,11 +205,15 @@ else:
     robot_bridge = RobotBridge()
     motion_controller = BridgeMotionAdapter(robot_bridge)
 
+behavior_engine.set_motion_controller(motion_controller)
+
 
 def status_report() -> dict:
     out = {
         "state": state_machine.get_state(),
         "behavior": behavior_engine.get_behavior(),
+        "idle_substate": behavior_engine.get_idle_substate(),
+        "idle_wander_tick": behavior_engine.get_idle_wander_tick(),
         "safety": safety_manager.get_status(),
         "pose": motion_controller.get_pose(),
         "recent_logs": get_logs(),
@@ -218,6 +252,8 @@ def _command_from_action_string(action: str, target: str | None, source: str) ->
         return Command(Actions.RESET, source=source)
     if a == Actions.GREET:
         return Command(Actions.GREET, source=source)
+    if a == Actions.DANCE:
+        return Command(Actions.DANCE, source=source)
     if a == Actions.STATUS:
         return Command(Actions.STATUS, source=source)
     if a == Actions.HISTORY:
@@ -234,9 +270,26 @@ def _command_from_action_string(action: str, target: str | None, source: str) ->
     return None
 
 
+def send_idle_look_at(waist: float, hand: float, source: str = "vision") -> dict:
+    """Desktop vision: map blob → waist/hand degrees, curious inspect on the robot."""
+    try:
+        mark_activity()
+        cmd = Command(
+            Actions.IDLE_LOOK_AT,
+            metadata={"waist": float(waist), "hand": float(hand)},
+            source=source,
+        )
+        command_router.route(cmd)
+        return {"ok": True, "command": cmd.to_dict()}
+    except Exception as exc:  # noqa: BLE001
+        log("send_idle_look_at error: " + str(exc))
+        return {"ok": False, "error": str(exc)}
+
+
 def send_command(action: str, target: str | None = None, source: str = "web") -> dict:
     """Build a Command from structured action name and route via src CommandRouter."""
     try:
+        mark_activity()
         cmd = _command_from_action_string(action, target, source)
         if cmd is None:
             return {
@@ -256,6 +309,8 @@ def parse_and_send_text(text: str, source: str = "web") -> dict:
     raw = (text or "").strip()
     if not raw:
         return {"ok": False, "error": "empty_text"}
+
+    mark_activity()
 
     parts = raw.lower().split()
     if len(parts) >= 2 and parts[0] == "pick":
@@ -295,6 +350,13 @@ def parse_and_send_text(text: str, source: str = "web") -> dict:
 def get_status() -> dict:
     """JSON-serializable snapshot for GET /status."""
     try:
+        _update_desktop_inactivity()
+        try:
+            from .vision_idle import tick_idle_vision
+
+            tick_idle_vision()
+        except ImportError:
+            pass
         behavior_engine.update()
         motion_controller.update()
         out = dict(status_report())

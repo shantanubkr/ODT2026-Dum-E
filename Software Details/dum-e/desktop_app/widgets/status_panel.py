@@ -23,9 +23,11 @@ C = {
 
 _STATE_COLORS = {
     "ACTIVE": C["success"],
-    "IDLE":   C["warning"],
+    "SAD":    C["purple"],
     "SLEEP":  C["muted"],
     "BOOT":   C["accent"],
+    "ERROR":  C["danger"],
+    "WORKING": C["warning"],
     "FAULT":  C["danger"],
 }
 

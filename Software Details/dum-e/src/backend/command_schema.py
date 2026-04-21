@@ -8,6 +8,8 @@ class Actions:
     STATUS = "status"
     HISTORY = "history"
     GREET = "greet"
+    DANCE = "dance"
+    IDLE_LOOK_AT = "idle_look_at"
 
 
 class Command:

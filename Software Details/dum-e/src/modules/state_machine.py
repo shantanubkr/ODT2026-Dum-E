@@ -7,11 +7,11 @@ class States:
     """Named state constants — single source of truth for state string values."""
 
     BOOT = "BOOT"  # Power-on / init before normal runtime
-    IDLE = "IDLE"  # Awake, low activity after inactivity timeout
-    ACTIVE = "ACTIVE"  # Awake and engaged (default running state)
+    ACTIVE = "ACTIVE"  # Awake and engaged (default running state; curious wander uses behavior idle)
+    SAD = "SAD"  # Low mood — slouch hold after express_sad; no wander until exited
     WORKING = "WORKING"  # Executing a command or motion sequence
-    ERROR = "ERROR"  # Fault / estop — higher priority than idle/sleep automation
-    SLEEP = "SLEEP"  # Deep inactivity — minimal behavior
+    ERROR = "ERROR"  # Fault / estop — higher priority than sleep automation
+    SLEEP = "SLEEP"  # Inactivity timeout — minimal behavior, no wander
 
 
 class StateMachine:

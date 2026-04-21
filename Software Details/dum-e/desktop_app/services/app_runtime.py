@@ -11,8 +11,6 @@ Single source of truth:
 """
 from __future__ import annotations
 
-import time
-
 from . import dum_e_runtime as _runtime
 from .ai_interpreter import AIInterpreter
 
@@ -27,6 +25,7 @@ _ACTION_SOUND: dict[str, str] = {
     "place_object": "pick",
     "stop":         "error",
     "reset":        "confirm",
+    "dance":        "happy",
 }
 
 # Maps sentiment buckets → sound keys.
@@ -38,9 +37,18 @@ _SENTIMENT_SOUND: dict[str, str] = {
     "BYE":   "bye",
 }
 
-# How long the robot must be continuously idle before playing the curious sound.
-_CURIOUS_IDLE_SECS = 10.0
-
+# One-shot when `behavior` changes (UI poll) — matches firmware/desktop behaviors to clips.
+_BEHAVIOR_ENTER_SOUND: dict[str, str] = {
+    "thinking": "thinking",
+    "express_happy": "happy",
+    "express_sad": "sad",
+    "sad_hold": "sad",
+    "express_bye": "bye",
+    "express_present": "pick",
+    "express_greet": "greet",
+    "greeting": "greet",
+    "dancing": "happy",
+}
 
 class DesktopAppRuntime:
     """
@@ -56,8 +64,9 @@ class DesktopAppRuntime:
         self._stt = LocalSpeechToText(model_size="base")
         self.sound = SoundOutput()
         # Ambient sound tracking — updated by get_status() on every UI poll.
-        self._idle_sound_timer: float | None = None   # wall-clock time idle started
-        self._last_behavior: str = ""                 # previous behavior name
+        self._last_behavior: str = ""
+        self._last_idle_substate: str = ""
+        self._last_idle_wander_tick: int = 0
 
     def get_sound(self, action: str) -> str:
         """Map a routed action name to a sound key."""
@@ -76,6 +85,8 @@ class DesktopAppRuntime:
         if not raw:
             return {"ok": False, "error": "empty_input", "ai": {}}
 
+        _runtime.mark_activity()
+
         ai_result = _interpreter.interpret_text(raw)
         ai_debug = {
             "input": raw,
@@ -90,6 +101,12 @@ class DesktopAppRuntime:
         sentiment_key = _SENTIMENT_SOUND.get(sentiment, "")
 
         if not ai_result.get("ok"):
+            if sentiment == "GREET":
+                _runtime.state_machine.change_state(_runtime.States.ACTIVE)
+                _runtime.behavior_engine.set_behavior("greeting")
+            elif sentiment == "SAD":
+                _runtime.state_machine.change_state(_runtime.States.SAD)
+                _runtime.behavior_engine.run_behavior("express_sad")
             if sentiment_key:
                 self.sound.play(sentiment_key)
             return {
@@ -98,13 +115,23 @@ class DesktopAppRuntime:
                 "ai": ai_debug,
             }
 
+        if sentiment == "GREET":
+            _runtime.state_machine.change_state(_runtime.States.ACTIVE)
+        elif sentiment == "SAD":
+            _runtime.state_machine.change_state(_runtime.States.SAD)
+            _runtime.behavior_engine.run_behavior("express_sad")
+        elif sentiment in ("HAPPY", "BYE"):
+            _runtime.state_machine.change_state(_runtime.States.ACTIVE)
+
         result = _runtime.send_command(
             action=ai_result["action"],
             target=ai_result.get("target"),
             source="desktop_ai",
         )
         # Play sentiment sound when available; fall back to action sound for NEUTRAL.
-        self.sound.play(sentiment_key or self.get_sound(ai_result["action"]))
+        combined = sentiment_key or self.get_sound(ai_result["action"])
+        if combined:
+            self.sound.play(combined)
         result["ai"] = ai_debug
         return result
 
@@ -115,7 +142,9 @@ class DesktopAppRuntime:
     def send_action(self, action: str, target: str | None = None) -> dict:
         """Route a structured action directly, bypassing AI interpretation."""
         result = _runtime.send_command(action=action, target=target, source="desktop")
-        self.sound.play(self.get_sound(action))
+        sk = self.get_sound(action)
+        if sk:
+            self.sound.play(sk)
         return result
 
     # ------------------------------------------------------------------
@@ -167,26 +196,25 @@ class DesktopAppRuntime:
     # ------------------------------------------------------------------
 
     def _check_ambient_sounds(self, status: dict) -> None:
-        """Fire curious / thinking sounds based on behavior state transitions.
+        """Laptop speaker: thinking on new wander step; curious when inspecting a blob.
 
         Called on every get_status() poll (≈1.5 s interval from the UI).
-        - curious  : plays once after _CURIOUS_IDLE_SECS of continuous idle.
-        - thinking : plays once on the tick the robot enters the thinking state.
         """
         behavior = status.get("behavior", "")
+        sub = str(status.get("idle_substate") or "")
+        tick = int(status.get("idle_wander_tick") or 0)
 
-        # --- curious: fire once per idle stretch, then reset the timer ------
-        if behavior == "idle":
-            if self._idle_sound_timer is None:
-                self._idle_sound_timer = time.monotonic()
-            elif time.monotonic() - self._idle_sound_timer >= _CURIOUS_IDLE_SECS:
-                self.sound.play("curious")
-                self._idle_sound_timer = time.monotonic()  # restart for next cycle
-        else:
-            self._idle_sound_timer = None  # reset whenever robot leaves idle
+        if behavior == "idle" and sub == "wander" and tick != self._last_idle_wander_tick:
+            self.sound.play("thinking", repeat=1)
+            self._last_idle_wander_tick = tick
 
-        # --- thinking: fire once on the transition into thinking state -------
-        if behavior == "thinking" and self._last_behavior != "thinking":
-            self.sound.play("thinking")
+        if sub == "inspect" and self._last_idle_substate != "inspect":
+            self.sound.play("curious", repeat=1)
+
+        if behavior != self._last_behavior:
+            bkey = _BEHAVIOR_ENTER_SOUND.get(behavior)
+            if bkey:
+                self.sound.play(bkey, repeat=1)
 
         self._last_behavior = behavior
+        self._last_idle_substate = sub

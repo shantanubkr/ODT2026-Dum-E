@@ -8,8 +8,9 @@ from backend.command_schema import Actions, Command
 from utils.logger import log
 
 # Contract: dum_e_state_manager must accept these command strings.
-# MOVE_HOME → idle | GREET → hello | STOP → error | RESET → idle
+# MOVE_HOME → idle | GREET → hello | DANCE → dance | STOP → error | RESET → idle
 # MOVE_TO ready → ready | MOVE_TO down → down | PICK_OBJECT → reach | PLACE_OBJECT → drop
+# pose_deg W UA F H EE → five joint angles (degrees), logical order waist→upper→forearm→hand→ee
 
 
 class RobotBridge:
@@ -31,6 +32,8 @@ class RobotBridge:
             self._send_home(command)
         elif action == Actions.GREET:
             self._send_greet(command)
+        elif action == Actions.DANCE:
+            self._send_dance(command)
         elif action == Actions.STOP:
             self._send_stop(command)
         elif action == Actions.RESET:
@@ -63,6 +66,15 @@ class RobotBridge:
                 + str(action)
                 + " — TODO: trajectory MOVE_TO, etc."
             )
+
+    def send_pose_degrees(self, angles_deg: list) -> None:
+        """Publish five joint angles (waist, upper_arm, forearm, hand, end_effector) in degrees."""
+        if len(angles_deg) != 5:
+            log("[RobotBridge] send_pose_degrees: need 5 angles")
+            return
+        parts = " ".join(str(int(round(float(a)))) for a in angles_deg)
+        self.current_state = "POSE_DEG"
+        self._publish_ros_command("pose_deg " + parts)
 
     def _publish_ros_command(self, command: str) -> None:
         cmd = (command or "").strip().lower()
@@ -99,6 +111,11 @@ class RobotBridge:
         self.current_state = "HELLO"
         log("[RobotBridge] GREET / HELLO triggered")
         self._publish_ros_command("hello")
+
+    def _send_dance(self, _command: Command) -> None:
+        self.current_state = "DANCE"
+        log("[RobotBridge] DANCE triggered")
+        self._publish_ros_command("dance")
 
     def _send_stop(self, _command: Command) -> None:
         self.current_state = "ERROR"

@@ -5,7 +5,7 @@ import time
 import select
 import sys
 
-from config import LOOP_DELAY_MS, IDLE_TIMEOUT_MS, SLEEP_TIMEOUT_MS, USE_PHYSICAL_BUTTONS
+from config import LOOP_DELAY_MS, SLEEP_TIMEOUT_MS, USE_PHYSICAL_BUTTONS
 
 from utils.logger import log, get_logs
 
@@ -34,6 +34,7 @@ last_activity_ms = reset_timer()
 
 # Give behavior engine access to servo control for expression behaviors.
 behavior_engine.set_motion_controller(motion_controller)
+behavior_engine.set_runtime_guards(state_machine, safety_manager)
 
 if USE_PHYSICAL_BUTTONS:
     from drivers.pir import Button
@@ -71,9 +72,8 @@ def mark_activity():
         log("System woke up from sleep due to activity")
 
 
-# Sentiment → expression behavior mapping; NEUTRAL is intentionally absent (no reaction).
+# Sentiment → expression behavior mapping (GREET uses home + hand nod via set_behavior("greeting")).
 _SENTIMENT_BEHAVIOR = {
-    "GREET": "express_greet",
     "BYE":   "express_bye",
     "HAPPY": "express_happy",
     "SAD":   "express_sad",
@@ -91,7 +91,15 @@ def handle_command(raw_command):
 
     sentiment = result.get("sentiment", "NEUTRAL")
     expr_name = _SENTIMENT_BEHAVIOR.get(sentiment)
-    if expr_name is not None:
+    if sentiment == "GREET":
+        state_machine.change_state(States.ACTIVE)
+        behavior_engine.set_behavior("greeting")
+    elif sentiment == "SAD":
+        state_machine.change_state(States.SAD)
+        behavior_engine.run_behavior("express_sad")
+    elif expr_name is not None:
+        if sentiment in ("HAPPY", "BYE"):
+            state_machine.change_state(States.ACTIVE)
         behavior_engine.run_behavior(expr_name)
 
     if command_type == "unknown":
@@ -118,20 +126,16 @@ def update_activity_state():
         if not state_machine.is_state(States.SLEEP):
             state_machine.change_state(States.SLEEP)
             behavior_engine.set_behavior("none")
-            log("System entered sleep mode")
+            log("System entered sleep mode due to inactivity")
         return
-
-    if has_elapsed(last_activity_ms, IDLE_TIMEOUT_MS):
-        if state_machine.is_state(States.ACTIVE):
-            state_machine.change_state(States.IDLE)
-            behavior_engine.set_behavior("idle")
-            log("System entered idle state due to inactivity")
 
 
 def status_report():
     return {
         "state": state_machine.get_state(),
         "behavior": behavior_engine.get_behavior(),
+        "idle_substate": behavior_engine.get_idle_substate(),
+        "idle_wander_tick": behavior_engine.get_idle_wander_tick(),
         "safety": safety_manager.get_status(),
         "recent_logs": get_logs(),
     }

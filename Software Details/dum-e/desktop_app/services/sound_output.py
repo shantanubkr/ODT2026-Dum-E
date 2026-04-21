@@ -40,9 +40,13 @@ class SoundOutput:
 
         repeat controls how many times the clip plays back-to-back (default 2).
         """
+        if not key:
+            return
         threading.Thread(target=self._play_sync, args=(key, repeat), daemon=True).start()
 
     def _play_sync(self, key: str, repeat: int = 2) -> None:
+        if not key:
+            return
         path = self._sounds.get(key)
         if not path or not path.exists():
             return

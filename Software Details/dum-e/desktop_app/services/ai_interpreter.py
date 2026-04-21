@@ -51,6 +51,7 @@ _EXACT_INTENTS: list[tuple[set, str, str | None]] = [
     ({"ready", "go ready"},                             "move_to",   "ready"),
     ({"down",  "go down"},                              "move_to",   "down"),
     ({"status"},                                        "status",    None),
+    ({"dance"},                                         "dance",     None),
 ]
 
 # ---------------------------------------------------------------------------
@@ -59,11 +60,18 @@ _EXACT_INTENTS: list[tuple[set, str, str | None]] = [
 #    Ordered most-specific → least-specific within each intent.
 # ---------------------------------------------------------------------------
 _CONTAINS_INTENTS: list[tuple[set, str, str | None]] = [
+    # dance — specific phrases before loose "dance" substring
+    ({"dance with me", "dance with us", "lets dance", "let's dance",
+      "do a dance", "start dancing", "show me a dance",
+      "can you dance", "please dance"},                  "dance",     None),
+
     # greet — checked before "hi" / "hello" loose matches
     ({"say hello", "say hi", "wave hello", "wave hi",
       "give a wave", "do a wave", "give greeting",
       "greet me", "greet yourself"},                   "greet",     None),
     ({"hello", "hi", "wave", "greet"},                 "greet",     None),
+
+    ({"dance"},                                        "dance",     None),
 
     # move_home
     ({"go home", "move home", "return home",

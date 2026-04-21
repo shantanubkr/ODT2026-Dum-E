@@ -9,12 +9,21 @@ Joint names match dum_e_description URDF (Revolute 7–10) plus firmware-only gr
   end_effector ← fifth servo (not in URDF; RViz ignores unknown joint)
 """
 
+import math
 import time
 
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from std_msgs.msg import String
+
+from .urdf_poses import (
+    LOGICAL_DOWN,
+    LOGICAL_ERROR,
+    LOGICAL_IDLE,
+    LOGICAL_REACH,
+    LOGICAL_READY,
+)
 
 # Order and names must stay in sync with URDF joint names (spaces preserved).
 _JOINT_NAMES = [
@@ -51,6 +60,7 @@ class DumEStateManager(Node):
         self._pub = self.create_publisher(JointState, "/joint_states", 10)
         self.create_timer(0.1, self._loop)
         self._state = "IDLE"
+        self._pose_deg_rad: list[float] = [0.0, 0.5, 1.0, 0.0, math.pi / 2]
         self.create_subscription(
             String,
             "/dum_e_command",
@@ -79,28 +89,49 @@ class DumEStateManager(Node):
             self._state = "REACH"
         elif command == "drop":
             self._state = "DOWN"
+        elif command == "dance":
+            self._state = "DANCE"
         else:
-            self.get_logger().warn("Unknown command: " + command)
+            parts = command.split()
+            if len(parts) == 6 and parts[0] == "pose_deg":
+                try:
+                    degs = [float(parts[i]) for i in range(1, 6)]
+                    self._pose_deg_rad = [d * math.pi / 180.0 for d in degs]
+                    self._state = "POSE_DEG"
+                    self.get_logger().info("pose_deg (logical joints deg→rad): " + str(degs))
+                except ValueError:
+                    self.get_logger().warn("pose_deg parse error: " + command)
+            else:
+                self.get_logger().warn("Unknown command: " + command)
 
     def _idle(self) -> None:
-        self._publish_logical([0.0, 0.5, 1.0, 0.0, 0.0])
+        self._publish_logical(list(LOGICAL_IDLE))
 
     def _hello(self) -> None:
         t = time.time()
         wave = 0.3 * (1 if int(t * 2) % 2 == 0 else -1)
-        self._publish_logical([0.0, 0.5, 1.0 + wave, 0.0, 0.0])
+        p = list(LOGICAL_IDLE)
+        p[2] = p[2] + wave
+        self._publish_logical(p)
 
     def _error(self) -> None:
-        self._publish_logical([0.0, 0.2, 0.5, 0.0, 0.0])
+        self._publish_logical(list(LOGICAL_ERROR))
 
     def _ready(self) -> None:
-        self._publish_logical([0.0, 0.55, 1.05, 0.0, 0.0])
+        self._publish_logical(list(LOGICAL_READY))
 
     def _down(self) -> None:
-        self._publish_logical([0.0, 0.35, 0.75, 0.0, 0.0])
+        self._publish_logical(list(LOGICAL_DOWN))
 
     def _reach(self) -> None:
-        self._publish_logical([0.0, 0.52, 1.0, 0.0, 0.0])
+        self._publish_logical(list(LOGICAL_REACH))
+
+    def _dance(self) -> None:
+        t = time.time()
+        wobble_w = 0.35 * math.sin(t * 4.2)
+        wobble_f = 0.22 * math.sin(t * 4.2 + 0.8)
+        wobble_h = 0.08 * math.sin(t * 3.1)
+        self._publish_logical([wobble_w, 0.48, 1.02 + wobble_f, wobble_h, math.pi / 2])
 
     def _loop(self) -> None:
         if self._state == "IDLE":
@@ -115,6 +146,10 @@ class DumEStateManager(Node):
             self._down()
         elif self._state == "REACH":
             self._reach()
+        elif self._state == "DANCE":
+            self._dance()
+        elif self._state == "POSE_DEG":
+            self._publish_logical(list(self._pose_deg_rad))
 
     def _publish_logical(self, joints: list) -> None:
         """joints order: waist, upper_arm, forearm, hand, end_effector (radians-ish)."""
