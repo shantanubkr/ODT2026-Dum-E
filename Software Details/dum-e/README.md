@@ -1,6 +1,6 @@
 # DUM-E
 
-DUM-E is an ESP32-based robotic arm / assistant inspired by Marvel’s DUM-E. This repository holds the firmware and tooling for motion, safety, sensing, and higher-level behavior.
+DUM-E is an ESP32-based robotic arm / assistant inspired by Marvel’s DUM-E. On-robot: **ESP32**, **five servos**, and **power**. **Camera and higher-level software** (dashboard, vision, optional ROS) run on a **laptop**. This repository holds the MicroPython firmware, deploy tooling, and desktop app.
 
 The device runs **MicroPython** on an ESP32. You edit code locally in **Cursor** and deploy it to the board (for example with `mpremote` and the scripts under `deploy/`).
 
@@ -38,9 +38,9 @@ The device runs **MicroPython** on an ESP32. You edit code locally in **Cursor**
 ## Current focus
 
 1. Foundation (project layout, config, docs)
-2. Motion (steppers, homing, trajectories)
-3. Safety (limits, emergency stop, obstacle rules)
-4. Sensing (distance, motion, future vision)
+2. Motion (servos, named poses, smooth stepping)
+3. Safety (limits, emergency stop)
+4. Vision & UX on the laptop (camera, dashboard, optional ROS)
 5. Higher-level behavior (state machine, commands, personality-style behaviors)
 
 ## Project structure
@@ -48,13 +48,12 @@ The device runs **MicroPython** on an ESP32. You edit code locally in **Cursor**
 | Path | Role |
 |------|------|
 | `src/` | MicroPython application: entrypoint, config, drivers, modules, interfaces |
-| `docs/` | Hardware inventory, pin map, architecture, state machine notes |
+| `docs/` | Hardware inventory, architecture, state machine notes |
 | `deploy/` | Helper scripts to upload `src/` to the device and reset the board |
 | `requirements.txt` | Host Python deps (`mpremote`); use with project `.venv` |
 | `test/` | Host-side or future test scaffolds (not full hardware-in-the-loop yet) |
 
 ## Next steps
 
-- Finalize wiring and fill in `docs/pin_map.md` and `src/pins.py`.
-- Implement drivers against real hardware, then wire `motion_controller` and `safety_manager`.
-- Grow the state machine and command path once basics are reliable.
+- Finalize wiring and tune `src/pins.py` + per-joint PWM limits in `src/config.py`.
+- Calibrate motion and grow the state machine / command path as behaviors stabilize.

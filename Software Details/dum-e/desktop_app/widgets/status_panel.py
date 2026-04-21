@@ -27,6 +27,8 @@ _STATE_COLORS = {
     "SLEEP":  C["muted"],
     "BOOT":   C["accent"],
     "ERROR":  C["danger"],
+    "STOP_COOLDOWN": C["warning"],
+    "DATA_ERROR": C["danger"],
     "WORKING": C["warning"],
     "FAULT":  C["danger"],
 }

@@ -3,6 +3,7 @@ from backend.command_schema import Actions, Command
 from modules.state_machine import States
 
 from utils.logger import log
+from utils.timers import reset_timer
 
 
 class CommandRouter:
@@ -45,6 +46,22 @@ class CommandRouter:
         action = command.action
         log("Routing command: " + str(command.to_dict()))
 
+        if self.state_machine.is_state(States.STOP_COOLDOWN):
+            if action == Actions.STOP:
+                log("STOP ignored (stop cooldown — hold at home)")
+                return
+            if action != Actions.RESET:
+                log("Command ignored (STOP_COOLDOWN): " + str(action))
+                return
+
+        if self.state_machine.is_state(States.DATA_ERROR):
+            if action == Actions.STOP:
+                log("STOP ignored (DATA_ERROR recovery)")
+                return
+            if action != Actions.RESET:
+                log("Command ignored (DATA_ERROR): " + str(action))
+                return
+
         self._maybe_exit_sad_mood(action)
 
         if action == Actions.MOVE_HOME:
@@ -69,19 +86,23 @@ class CommandRouter:
             return
 
         if action == Actions.STOP:
-            log("STOP command received")
+            log("STOP command received — move home, then 10s hold at home")
+            self.state_machine.change_state(States.STOP_COOLDOWN)
             if self.safety_manager is not None:
-                self.safety_manager.trigger_emergency_stop()
-            self.state_machine.change_state(States.ERROR)
+                self.safety_manager.clear_stop_cooldown_timers()
             if self.behavior_engine is not None:
                 self.behavior_engine.set_behavior("none")
                 self.behavior_engine.cancel_idle_inspect()
+            self.motion_controller.move_to_named_pose("home")
             return
 
         if action == Actions.RESET:
             log("RESET command received")
             if self.safety_manager is not None:
+                self.safety_manager.clear_stop_cooldown_timers()
+                self.safety_manager.clear_data_error_timers()
                 self.safety_manager.reset_emergency_stop()
+                self.safety_manager.clear_sensor_error()
             self.state_machine.change_state(States.ACTIVE)
             if self.behavior_engine is not None:
                 self.behavior_engine.set_behavior("idle")
@@ -155,6 +176,17 @@ class CommandRouter:
             return
 
         log("Unhandled command: " + str(action))
+
+    def route_data_fault(self, reason="bad data"):
+        """Bad serial / timeout / out-of-range coords: DATA_ERROR, nod, auto recovery in main."""
+        log("DATA FAULT: " + str(reason))
+        if self.safety_manager is not None:
+            self.safety_manager.set_sensor_error()
+            self.safety_manager.data_error_deadline_ms = reset_timer()
+        self.state_machine.change_state(States.DATA_ERROR)
+        if self.behavior_engine is not None:
+            self.behavior_engine.run_behavior("error_nod")
+        log("ERROR_ACK: sound (stub — wire buzzer in hardware if needed)")
 
 
 def build_command_from_parse_result(result, source="debug"):

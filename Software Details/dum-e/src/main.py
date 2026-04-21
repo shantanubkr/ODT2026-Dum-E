@@ -7,6 +7,8 @@ import sys
 
 from config import LOOP_DELAY_MS, SLEEP_TIMEOUT_MS, USE_PHYSICAL_BUTTONS
 
+from modules.recovery_timers import update_data_error_recovery, update_stop_recovery
+
 from utils.logger import log, get_logs
 
 from utils.timers import reset_timer, has_elapsed
@@ -37,7 +39,7 @@ behavior_engine.set_motion_controller(motion_controller)
 behavior_engine.set_runtime_guards(state_machine, safety_manager)
 
 if USE_PHYSICAL_BUTTONS:
-    from drivers.pir import Button
+    from drivers.panel_button import Button
     from pins import BTN_DOWN, BTN_J1, BTN_J2, BTN_J3, BTN_J4, BTN_J5, BTN_UP
 
     btn_j1 = Button(BTN_J1)
@@ -120,6 +122,10 @@ def handle_command(raw_command):
 
 def update_activity_state():
     if state_machine.is_state(States.ERROR):
+        return
+    if state_machine.is_state(States.STOP_COOLDOWN):
+        return
+    if state_machine.is_state(States.DATA_ERROR):
         return
 
     if has_elapsed(last_activity_ms, SLEEP_TIMEOUT_MS):
@@ -206,6 +212,8 @@ def loop():
         handle_command(line)
 
     handle_buttons()
+    update_stop_recovery(state_machine, safety_manager, motion_controller, behavior_engine)
+    update_data_error_recovery(state_machine, safety_manager, motion_controller, behavior_engine)
     update_activity_state()
     motion_controller.update()
     behavior_engine.update()

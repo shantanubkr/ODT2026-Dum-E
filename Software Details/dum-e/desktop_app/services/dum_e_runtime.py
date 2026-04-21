@@ -61,6 +61,7 @@ from interfaces.robot_bridge import RobotBridge
 from modules.behavior_engine import BehaviorEngine
 from modules.intent_parser import IntentParser
 from modules.safety_manager import SafetyManager
+from modules.recovery_timers import update_data_error_recovery, update_stop_recovery
 from modules.state_machine import StateMachine, States
 from utils.logger import get_logs, log
 from utils.timers import has_elapsed, reset_timer
@@ -102,6 +103,9 @@ class LaptopMotionController:
     def update(self) -> None:
         self.current_angles = list(self.target_angles)
 
+    def is_at_target(self) -> bool:
+        return self.current_angles == self.target_angles
+
     def get_pose(self) -> list:
         return list(self.current_angles)
 
@@ -141,6 +145,9 @@ class BridgeMotionAdapter:
 
     def update(self) -> None:
         pass
+
+    def is_at_target(self) -> bool:
+        return True
 
     def get_pose(self) -> dict:
         """No live telemetry yet — avoid fake joint angles in the UI."""
@@ -191,6 +198,10 @@ def mark_activity() -> None:
 
 def _update_desktop_inactivity() -> None:
     if state_machine.is_state(States.ERROR):
+        return
+    if state_machine.is_state(States.STOP_COOLDOWN):
+        return
+    if state_machine.is_state(States.DATA_ERROR):
         return
     if has_elapsed(_last_activity_ms, SLEEP_TIMEOUT_MS):
         if not state_machine.is_state(States.SLEEP):
@@ -350,6 +361,8 @@ def parse_and_send_text(text: str, source: str = "web") -> dict:
 def get_status() -> dict:
     """JSON-serializable snapshot for GET /status."""
     try:
+        update_stop_recovery(state_machine, safety_manager, motion_controller, behavior_engine)
+        update_data_error_recovery(state_machine, safety_manager, motion_controller, behavior_engine)
         _update_desktop_inactivity()
         try:
             from .vision_idle import tick_idle_vision
@@ -357,8 +370,8 @@ def get_status() -> dict:
             tick_idle_vision()
         except ImportError:
             pass
-        behavior_engine.update()
         motion_controller.update()
+        behavior_engine.update()
         out = dict(status_report())
         out["simulation"] = USE_SIM_MOTION
         return out

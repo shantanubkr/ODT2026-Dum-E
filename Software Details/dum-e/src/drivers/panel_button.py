@@ -1,3 +1,5 @@
+"""Debounced GPIO buttons for optional panel wiring (not used in default build)."""
+
 from machine import Pin
 import utime
 

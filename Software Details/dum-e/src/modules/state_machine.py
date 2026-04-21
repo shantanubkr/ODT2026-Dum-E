@@ -10,7 +10,9 @@ class States:
     ACTIVE = "ACTIVE"  # Awake and engaged (default running state; curious wander uses behavior idle)
     SAD = "SAD"  # Low mood — slouch hold after express_sad; no wander until exited
     WORKING = "WORKING"  # Executing a command or motion sequence
-    ERROR = "ERROR"  # Fault / estop — higher priority than sleep automation
+    ERROR = "ERROR"  # Legacy fault label; prefer STOP_COOLDOWN / DATA_ERROR for new flows
+    STOP_COOLDOWN = "STOP_COOLDOWN"  # After STOP: homing then 10s hold at home (estop), then auto idle
+    DATA_ERROR = "DATA_ERROR"  # Bad serial / coords: error nod + 5s auto recovery to home + idle
     SLEEP = "SLEEP"  # Inactivity timeout — minimal behavior, no wander
 
 

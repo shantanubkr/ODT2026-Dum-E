@@ -18,7 +18,7 @@ Matches the **servo-only** build in **`src/modules/motion_controller.py`** and *
 
 ## Physical buttons (optional)
 
-Set **`USE_PHYSICAL_BUTTONS = True`** in **`config.py`**. **`main.py`** then uses **`drivers.pir.Button`** on **`BTN_J1`…`BTN_J5`** (joint select) and **`BTN_UP` / `BTN_DOWN`** (nudge).
+Set **`USE_PHYSICAL_BUTTONS = True`** in **`config.py`**. **`main.py`** then uses **`drivers.panel_button.Button`** on **`BTN_J1`…`BTN_J5`** (joint select) and **`BTN_UP` / `BTN_DOWN`** (nudge).
 
 ## Commands (stdin / dashboard)
 

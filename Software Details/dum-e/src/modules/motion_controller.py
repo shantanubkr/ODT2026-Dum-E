@@ -128,5 +128,12 @@ class MotionController:
             self.current_angles[i] = current
             self.servos[i].write(current)
 
+    def is_at_target(self):
+        """True when every joint has reached its commanded target (for STOP cooldown / recovery)."""
+        for i in range(NUM_JOINTS):
+            if abs(float(self.current_angles[i]) - float(self.target_angles[i])) > 0.5:
+                return False
+        return True
+
     def get_pose(self):
         return self.current_angles

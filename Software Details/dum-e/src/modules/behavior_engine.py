@@ -143,6 +143,11 @@ class BehaviorEngine:
             self._move(self._sad_slouch_pose())
         elif behavior_name == "dancing":
             self._dance_last_step = -1
+        elif behavior_name == "error_nod":
+            self._expr_phase = 0
+            self._expr_phase_start = current_millis()
+            if self._mc is not None:
+                self._expr_base = list(self._mc.current_angles)
         elif behavior_name not in ("greeting", "express_greet"):
             self._greet_seq_phase = None
 
@@ -405,6 +410,8 @@ class BehaviorEngine:
         """Rhythmic waist / arm sway from home; ends after DANCE_DURATION_MS."""
         if self._state_machine is not None:
             if self._state_machine.is_state(States.ERROR) or self._state_machine.is_state(
+                States.STOP_COOLDOWN
+            ) or self._state_machine.is_state(States.DATA_ERROR) or self._state_machine.is_state(
                 States.SLEEP
             ):
                 self.set_behavior("idle")
@@ -511,6 +518,17 @@ class BehaviorEngine:
             self._next_phase()
         # Phase 1+: hold until externally interrupted.
 
+    def error_nod_behavior(self):
+        """DATA_ERROR: waist 'no' shake; then none until main recovers after DATA_ERROR_RECOVERY_MS."""
+        b0 = float(self._expr_base[0])
+        offsets = [+18, -18, +18, -18, 0]
+        if self._expr_phase < len(offsets):
+            self._move(self._pose_waist(b0 + offsets[self._expr_phase]))
+            if self._phase_elapsed(220):
+                self._next_phase()
+        else:
+            self.set_behavior("none")
+
     # ------------------------------------------------------------------
     # Main dispatch
     # ------------------------------------------------------------------
@@ -539,5 +557,7 @@ class BehaviorEngine:
             self.express_bye_behavior()
         elif self.current_behavior == "express_present":
             self.express_present_behavior()
+        elif self.current_behavior == "error_nod":
+            self.error_nod_behavior()
         else:
             log("Unknown behavior: " + str(self.current_behavior))

@@ -29,11 +29,11 @@ IDLE_INSPECT_NOD_SWING_DEG = 15
 IDLE_INSPECT_PHASE_MS = 280
 IDLE_INSPECT_SETTLE_MS = 400
 
-# Reserved (no distance sensors in current build)
-DIST_NEAR_CM = 20
-DIST_FAR_CM = 80
-OBSTACLE_STOP_CM = 10
-SENSOR_TIMEOUT_MS = 2_000
+# STOP: move home → estop hold at home → auto clear after this (ms)
+STOP_COOLDOWN_MS = 10_000
+
+# Bad data / fault: error nod then auto home + idle after this (ms) from fault entry
+DATA_ERROR_RECOVERY_MS = 5_000
 
 # Motion / behavior timing
 GREET_SEQUENCE_TIMEOUT_MS = 12_000  # safety cap for home + hand-nod greet FSM

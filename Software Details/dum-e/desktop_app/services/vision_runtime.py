@@ -1,22 +1,40 @@
 from .camera_stream import CameraStream
 from .color_detector import ColorDetector
 
+import cv2
+
+try:
+    _DEFAULT_BACKEND = cv2.CAP_FFMPEG
+except AttributeError:
+    _DEFAULT_BACKEND = 0
+
 
 class VisionRuntime:
     """Ties CameraStream and ColorDetector together into a single call.
+
+    Passes through FFmpeg backend and buffer size to :class:`CameraStream` to keep
+    MJPEG latency low and skip bad frames (Huffman / partial JPEG) gracefully.
 
     Typical usage:
         vision = VisionRuntime("http://192.168.1.100:81/stream")
         result = vision.find_color("red")
         if result["found"]:
             cx, cy = result["pixel_center"]
-
-    The "frame" key is always included in the result so callers can
-    display or debug the raw image without a second camera.read() call.
     """
 
-    def __init__(self, stream_url: str):
-        self.camera = CameraStream(stream_url)
+    def __init__(
+        self,
+        stream_url: str,
+        *,
+        camera_backend: int | None = None,
+        buffer_size: int = 1,
+    ):
+        _backend = _DEFAULT_BACKEND if camera_backend is None else camera_backend
+        self.camera = CameraStream(
+            stream_url,
+            backend=_backend,
+            buffer_size=buffer_size,
+        )
         self.detector = ColorDetector()
 
     def find_color(self, color: str) -> dict:
@@ -35,5 +53,4 @@ class VisionRuntime:
         return result
 
     def release(self):
-        """Release the underlying camera resource."""
         self.camera.release()

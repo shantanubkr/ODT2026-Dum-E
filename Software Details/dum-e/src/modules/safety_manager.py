@@ -1,14 +1,18 @@
-# Gate motion: estop and sensor fault blocks can_move(); all actuators should check can_move() first.
+# Gate motion: estop (and optional fault latch) blocks can_move(); actuators should check can_move() first.
 
 from utils.logger import log  # Safety events must be visible in logs
 
 
 class SafetyManager:
-    """Boolean latches for estop / sensor fault; central permission for movement."""
+    """Emergency stop latch; optional fault latch for future extensions. Central permission for movement."""
 
     def __init__(self):
         self.emergency_stop_active = False  # True = motion forbidden until reset
-        self.sensor_error_active = False  # True = unsafe to trust sensors / motion
+        self.sensor_error_active = False  # Set during DATA_ERROR recovery path
+        # STOP_COOLDOWN: set when home reached; timer for 10s hold (see main.update_stop_recovery)
+        self.stop_cooldown_hold_deadline_ms = None
+        # DATA_ERROR: wall-clock start for 5s auto recovery (see main.update_data_error_recovery)
+        self.data_error_deadline_ms = None
         log("Safety manager initialized")  # Startup marker
 
     def trigger_emergency_stop(self):
@@ -28,7 +32,7 @@ class SafetyManager:
         log("EMERGENCY STOP cleared")  # Audit
 
     def set_sensor_error(self):
-        """Latch sensor fault — timeouts, invalid readings, fallback mode."""
+        """Latch generic fault (reserved for future use)."""
         if self.sensor_error_active:  # Idempotent
             return  # Already in fault
 
@@ -36,7 +40,7 @@ class SafetyManager:
         log("Sensor error activated")  # Debug visibility
 
     def clear_sensor_error(self):
-        """Recover from sensor fault when readings are trusted again."""
+        """Clear generic fault latch."""
         if not self.sensor_error_active:  # Idempotent
             return  # Already healthy
 
@@ -44,14 +48,22 @@ class SafetyManager:
         log("Sensor error cleared")  # Audit
 
     def can_move(self):
-        """Single API for motion layer — True only if no estop and no sensor fault."""
+        """True only if no estop and no active fault latch."""
         if self.emergency_stop_active:  # Estop wins
             return False  # Never move under estop
 
-        if self.sensor_error_active:  # Conservative: no motion until cleared
-            return False  # Later: allow limited fallback if policy changes
+        if self.sensor_error_active:
+            return False
 
         return True  # Safe to attempt motion
+
+    def clear_stop_cooldown_timers(self):
+        """RESET or recovery: drop STOP_COOLDOWN hold tracking."""
+        self.stop_cooldown_hold_deadline_ms = None
+
+    def clear_data_error_timers(self):
+        """RESET or recovery: drop DATA_ERROR deadline."""
+        self.data_error_deadline_ms = None
 
     def get_status(self):
         """Snapshot dict for status command / remote telemetry."""
@@ -59,4 +71,6 @@ class SafetyManager:
             "emergency_stop_active": self.emergency_stop_active,  # Raw latch
             "sensor_error_active": self.sensor_error_active,  # Raw latch
             "can_move": self.can_move(),  # Effective permission
+            "stop_cooldown_hold_deadline_ms": self.stop_cooldown_hold_deadline_ms,
+            "data_error_deadline_ms": self.data_error_deadline_ms,
         }

@@ -60,7 +60,12 @@ while not wifi.isconnected():
 ip = wifi.ifconfig()[0]
 print('CAM_IP:' + ip)
 
-camera.init(0, format=camera.JPEG, framesize={FRAME_SIZE})
+# QVGA + quality: smaller JPEG = less Wi‑Fi choppiness; quality 20 (typ. 10–63) = smaller payload
+# If your port errors here, use camera.init(0, format=camera.JPEG, framesize={FRAME_SIZE}) only.
+try:
+    camera.init(0, format=camera.JPEG, framesize={FRAME_SIZE}, quality=20)
+except TypeError:
+    camera.init(0, format=camera.JPEG, framesize={FRAME_SIZE})
 
 srv = socket.socket()
 srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
