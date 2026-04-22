@@ -8,7 +8,7 @@ from backend.command_schema import Actions, Command
 from utils.logger import log
 
 # Contract: dum_e_state_manager must accept these command strings.
-# MOVE_HOME → idle | GREET → hello | DANCE → dance | STOP → error | RESET → idle
+# MOVE_HOME → idle | GREET → hello | DANCE → dance | STOP → error | RESET / RESUME_IDLE → idle
 # MOVE_TO ready → ready | MOVE_TO down → down | PICK_OBJECT → reach | PLACE_OBJECT → drop
 # pose_deg W UA F H EE → five joint angles (degrees), logical order waist→upper→forearm→hand→ee
 
@@ -38,6 +38,8 @@ class RobotBridge:
             self._send_stop(command)
         elif action == Actions.RESET:
             self._send_reset(command)
+        elif action == Actions.RESUME_IDLE:
+            self._send_resume_idle(command)
         elif action == Actions.MOVE_TO:
             pose = (command.metadata or {}).get("pose")
             if pose == "ready":
@@ -125,6 +127,11 @@ class RobotBridge:
     def _send_reset(self, _command: Command) -> None:
         self.current_state = "IDLE"
         log("[RobotBridge] RESET triggered")
+        self._publish_ros_command("idle")
+
+    def _send_resume_idle(self, _command: Command) -> None:
+        self.current_state = "IDLE"
+        log("[RobotBridge] RESUME_IDLE (task done — idle wander) triggered")
         self._publish_ros_command("idle")
 
     def _send_ready(self, _command: Command) -> None:

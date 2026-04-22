@@ -101,10 +101,16 @@ class TrackTargetNode(Node):
             target=pose,
             source="track_target_node",
         )
+        _runtime.send_command(
+            action="resume_idle",
+            source="track_target_node",
+        )
         self._pick_latch_mono = None
         self._grip_ok_streak = 0
         self._phase = _Phase.TRACKING
-        self.get_logger().info("Returned to TRACKING — ready for next target.")
+        self.get_logger().info(
+            "Place done: resume_idle — ACTIVE + idle wander. TRACKING re-armed for next object."
+        )
 
     def _on_target(self, msg: Point) -> None:
         if self._phase is not _Phase.TRACKING:

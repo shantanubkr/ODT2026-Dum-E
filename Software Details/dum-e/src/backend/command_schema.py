@@ -10,6 +10,8 @@ class Actions:
     GREET = "greet"
     DANCE = "dance"
     IDLE_LOOK_AT = "idle_look_at"
+    # End of scripted task: ACTIVE + "idle" (curious wander) without moving home
+    RESUME_IDLE = "resume_idle"
 
 
 class Command:

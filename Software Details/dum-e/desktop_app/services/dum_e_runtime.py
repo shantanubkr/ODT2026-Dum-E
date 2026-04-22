@@ -168,6 +168,8 @@ class _RouterWithBridgeNotify:
     def route(self, cmd: Command) -> None:
         if cmd.action == Actions.RESET:
             self._bridge.send(cmd)
+        if cmd.action == Actions.RESUME_IDLE:
+            self._bridge.send(cmd)
         self._inner.route(cmd)
         if cmd.action == Actions.STOP:
             self._bridge.send(cmd)
@@ -261,6 +263,8 @@ def _command_from_action_string(action: str, target: str | None, source: str) ->
         return Command(Actions.STOP, source=source)
     if a == Actions.RESET:
         return Command(Actions.RESET, source=source)
+    if a == Actions.RESUME_IDLE:
+        return Command(Actions.RESUME_IDLE, source=source)
     if a == Actions.GREET:
         return Command(Actions.GREET, source=source)
     if a == Actions.DANCE:

@@ -109,6 +109,14 @@ class CommandRouter:
             self.motion_controller.move_to_named_pose("home")
             return
 
+        if action == Actions.RESUME_IDLE:
+            log("RESUME_IDLE: end pick/vision task — ACTIVE + idle wander (no pose change)")
+            self.state_machine.change_state(States.ACTIVE)
+            if self.behavior_engine is not None:
+                self.behavior_engine.set_behavior("idle")
+                self.behavior_engine.cancel_idle_inspect()
+            return
+
         if action == Actions.PICK_OBJECT:
             log("Pick object requested: " + str(command.target))
             if not self._can_move():
