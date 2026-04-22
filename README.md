@@ -1,10 +1,12 @@
 **Project Title**
 
-[Enter your project name here]
+dum-e
 
 **📌 Project Overview**
 
-[Provide a short description of your project]
+Dum-E is a custom-built, articulated robotic arm.
+
+It operates using the ROS 2 Humble software framework to handle complex kinematics and precise, multi-joint motion control. Physically, the arm is driven by a stable S-25-5 power supply to manage heavy actuator loads and features an integrated ESP32-CAM module that provides real-time visual telemetry and spatial awareness.
 
 
 **📂 Repository Structure**
@@ -28,4 +30,4 @@ Media → Weekly progress and final output
 
 
 **👥 Team Members**
-[Name]
+Avyukt and shantanu
