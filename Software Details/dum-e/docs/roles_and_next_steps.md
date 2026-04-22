@@ -5,6 +5,7 @@
 | Area | Contents |
 |------|----------|
 | **`ros2_ws/src/dum_e_description/`** | ROS 2 package: URDF/xacro, meshes, **`launch/view_robot.launch.py`** (`robot_state_publisher` + joint GUI + RViz — see package README). |
+| **`ros2_ws/src/dum_e_vision/`** | **`vision_node`**: Gazebo **`Image`** or real **HTTP MJPEG** → **`/dume/target_coord`** (`Point`: x,y,z=area). See package **README**. |
 | **`dum_hardware/urdf/`** | Reference xacro kept in sync with the description package for offline diff / CAD handoff. |
 | **`src/`** | ESP32 MicroPython firmware: servos, parser, router, behaviors, safety. |
 | **`desktop_app/`** | Dashboard + CPython runtime bridging **`CommandRouter`** and optional **`RobotBridge`** (ROS 2). |
