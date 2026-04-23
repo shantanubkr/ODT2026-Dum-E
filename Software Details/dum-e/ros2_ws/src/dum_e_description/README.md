@@ -1,6 +1,6 @@
 # dum_e_description
 
-ROS 2 Humble package: **URDF/xacro**, **meshes**, and Gazebo extras for DUM-E (4 revolute joints in model; 5th axis is gripper in firmware only).
+ROS 2 Humble package: **URDF/xacro**, **meshes**, and Gazebo extras for DUM-E (4 revolute joints; matches firmware four-DOF arm).
 
 ## Contents
 
@@ -44,14 +44,14 @@ ros2 run robot_state_publisher robot_state_publisher --ros-args -p robot_descrip
 
 ## Joint ↔ mesh filenames
 
-Meshes were renamed from informal `dum_hardware/*.stl` to match the xacro:
+Meshes were renamed from informal CAD STL filenames to match the xacro:
 
 - `Base.stl` → `base_link.stl`
 - `Waist.stl` → `Waist_1.stl`
 - `Upper_arm.stl` → `Upper_arm_1.stl`
 - `Forearm.stl` → `Forearm_1.stl`
 - `Hand.stl` → `Hand_1.stl`
-- `end_effector.stl` — optional visual for gripper (not referenced in current `dum-e.xacro`)
+- `end_effector.stl` — unused in current `dum-e.xacro` (reserved for a future tool)
 
 ## Note on ROS 1 transmissions
 

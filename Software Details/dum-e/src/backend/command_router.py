@@ -134,12 +134,42 @@ class CommandRouter:
             return
 
         if action == Actions.MOVE_TO:
-            pose = (command.metadata or {}).get("pose")
+            md = command.metadata or {}
+            pose_deg = md.get("pose_deg")
+            if (
+                isinstance(pose_deg, (list, tuple))
+                and len(pose_deg) == 4
+            ):
+                if not self._can_move():
+                    log("Movement blocked by safety manager")
+                    return
+                self.motion_controller.move_to_pose(
+                    [float(pose_deg[i]) for i in range(4)]
+                )
+                return
+            pose = md.get("pose")
             if pose is not None:
                 if not self._can_move():
                     log("Movement blocked by safety manager")
                     return
                 self.motion_controller.move_to_named_pose(pose)
+                return
+            direction = (command.target or command.location or "").strip().lower()
+            if direction in ("left", "right", "forward"):
+                if not self._can_move():
+                    log("Movement blocked by safety manager")
+                    return
+                nudge = getattr(
+                    self.motion_controller, "nudge_track_direction", None
+                )
+                if nudge is not None:
+                    nudge(direction)
+                else:
+                    log(
+                        "MOVE_TO nudge ("
+                        + direction
+                        + "): not supported on this motion controller"
+                    )
                 return
             if not self._can_move():
                 log("Movement blocked by safety manager")
@@ -230,5 +260,14 @@ def build_command_from_parse_result(result, source="debug"):
         args = result.get("args") or []
         direction = args[0] if len(args) >= 1 else None
         return Command(Actions.MOVE_TO, target=direction, source=source)
+
+    if command_type == "pose_deg":
+        args = result.get("args") or []
+        if len(args) == 4:
+            return Command(
+                Actions.MOVE_TO,
+                metadata={"pose_deg": list(args)},
+                source=source,
+            )
 
     return None

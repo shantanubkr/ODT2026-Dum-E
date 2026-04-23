@@ -6,7 +6,6 @@
 |------|----------|
 | **`ros2_ws/src/dum_e_description/`** | ROS 2 package: URDF/xacro, meshes, **`launch/view_robot.launch.py`** (`robot_state_publisher` + joint GUI + RViz — see package README). |
 | **`ros2_ws/src/dum_e_vision/`** | **`vision_node`**: Gazebo **`Image`** or real **HTTP MJPEG** → **`/dume/target_coord`** (`Point`: x,y,z=area). See package **README**. |
-| **`dum_hardware/urdf/`** | Reference xacro kept in sync with the description package for offline diff / CAD handoff. |
 | **`src/`** | ESP32 MicroPython firmware: servos, parser, router, behaviors, safety. |
 | **`desktop_app/`** | Dashboard + CPython runtime bridging **`CommandRouter`** and optional **`RobotBridge`** (ROS 2). |
 
@@ -15,7 +14,7 @@
 | Task | Notes |
 |------|--------|
 | Joint name mapping | URDF uses names like **`Revolute 7`–`10`**; firmware uses **`waist`**, **`upper_arm`**, etc. Bridge or rename in **`dum_e_controller`** / RViz as needed. |
-| Fifth axis in `/joint_states` | URDF has **four** revolute joints; gripper is **firmware-only** — publish a constant or extra angle if the dashboard needs five joints. |
+| `/joint_states` vs firmware | **`dum_e_state_manager`** publishes four URDF joints; names map from logical waist/upper/forearm/hand (see package). |
 | **`dum_e_state_manager`** | Align with live topic names and **`dum_e_description`** after testing on a ROS machine. |
 | Gazebo / **ros2_control** | **`dum-e.trans`** is legacy-style; replace when you add proper simulation. |
 

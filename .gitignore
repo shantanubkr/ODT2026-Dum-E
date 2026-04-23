@@ -4,3 +4,6 @@
 # Large / local binary artifacts (not for Git)
 **/desktop_app/sounds/*.pkg
 **/desktop_app/sounds/*.bin
+
+# Exceeds GitHub 100 MB limit; keep locally or use Git LFS
+Media/Final/IMG_7987.MOV

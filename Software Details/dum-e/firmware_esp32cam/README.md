@@ -19,6 +19,6 @@ Use the value `20` for a smaller per-frame payload than very low values (e.g. 5�
 
 ## Laptop / OpenCV
 
-Use `desktop_app/services/camera_stream.py` (or `camera_stream_wsl.py` on WSL) — **FFmpeg** backend, **buffer size 1**, corrupt frames return `None` so vision does not block on a bad chunk.
+Use `desktop_app/services/camera_stream.py` — **FFmpeg** backend, **buffer size 1**, corrupt frames return `None` so vision does not block on a bad chunk.
 
 See `firmware_esp32cam/arduino_mjpeg_config_snippet.ino` for a drop-in `config` block.

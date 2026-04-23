@@ -1,0 +1,18 @@
+# Copy to pick_constants.yaml and fill after hardware runs.
+# Distances in inches unless you convert in your app.
+
+layout:
+  camera_to_base_horizontal_in: 28.5
+
+cup_150ml_paper:
+  height_in: 2.39
+  outer_width_in: 2.25
+
+pick_z_strategy:
+  hover_offset_above_grasp_in: 0.75
+  grasp:
+    label: cup_grasp_height
+    pose_deg: [90, 90, 90, 90]
+  hover:
+    label: cup_hover_above_table
+    pose_deg: [90, 90, 90, 90]

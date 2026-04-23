@@ -6,7 +6,7 @@ Thin bridge between the Tkinter UI and the existing DUM-E runtime.
 Single source of truth:
   AI interpretation  -> desktop_app/services/ai_interpreter.py
   Command routing    -> src/backend/command_router.py  (via dum_e_runtime)
-  Robot bridge       -> src/interfaces/robot_bridge.py (via dum_e_runtime)
+  Robot bridge       -> desktop_app/services/robot_bridge.py (via dum_e_runtime)
   Runtime state      -> desktop_app/services/dum_e_runtime.py
 """
 from __future__ import annotations
@@ -59,9 +59,11 @@ class DesktopAppRuntime:
     """
 
     def __init__(self) -> None:
-        from .speech_to_text import LocalSpeechToText
         from .sound_output import SoundOutput
-        self._stt = LocalSpeechToText(model_size="base")
+
+        # Lazy-load Whisper on first mic use — avoids loading onnx/ctranslate2 at startup
+        # (fewer native libs in-process during serial + Tk; faster button-only sessions).
+        self._stt = None
         self.sound = SoundOutput()
         # Ambient sound tracking — updated by get_status() on every UI poll.
         self._last_behavior: str = ""
@@ -151,6 +153,13 @@ class DesktopAppRuntime:
     # Voice input (push-to-talk: record → transcribe → send_text_command)
     # ------------------------------------------------------------------
 
+    def _ensure_stt(self):
+        if self._stt is None:
+            from .speech_to_text import LocalSpeechToText
+
+            self._stt = LocalSpeechToText(model_size="base")
+        return self._stt
+
     def handle_voice_input(self) -> dict:
         """
         Record audio → transcribe locally (Whisper) → send through the normal
@@ -169,7 +178,7 @@ class DesktopAppRuntime:
         except Exception as exc:  # noqa: BLE001
             return {"ok": False, "error": "mic_error", "detail": str(exc)}
 
-        transcript = self._stt.transcribe(file_path)
+        transcript = self._ensure_stt().transcribe(file_path)
         if not transcript:
             return {"ok": False, "error": "no_speech"}
 

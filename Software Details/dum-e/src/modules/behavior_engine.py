@@ -14,12 +14,13 @@ from config import (
     IDLE_INSPECT_NOD_SWING_DEG,
     IDLE_INSPECT_PHASE_MS,
     IDLE_INSPECT_SETTLE_MS,
-    IDLE_WANDER_JOINT_DELTA_MAX,
+    IDLE_LOOK_JOINT_RANGES,
     IDLE_WANDER_MAX_MS,
     IDLE_WANDER_MIN_MS,
     JOINT_ANGLE_MAX_DEG,
     JOINT_ANGLE_MIN_DEG,
     JOINT_HOME_ANGLES,
+    NUM_JOINTS,
     SAD_PEAK_HOLD_MS,
     SAD_RETURN_EASE_MS,
     SAD_SLOUCH_FOREARM_DEG,
@@ -35,9 +36,10 @@ try:
 except ImportError:
 
     def express_present_firmware_deg():
-        return [90, 45, 0, JOINT_HOME_ANGLES[3], JOINT_HOME_ANGLES[4]]
+        h = JOINT_HOME_ANGLES
+        return [h[0], 45, 0, h[3]]
 
-# Dance: offsets (waist, upper_arm, forearm) added to JOINT_HOME_ANGLES; hand/ee stay at home.
+# Dance: offsets (waist, upper_arm, forearm) added to JOINT_HOME_ANGLES; hand stays at home.
 _DANCE_STEPS = [
     (0, 0, 0),
     (32, -14, 18),
@@ -218,14 +220,12 @@ class BehaviorEngine:
         return max(lo, min(hi, a))
 
     def _pick_wander_pose(self):
-        base = list(JOINT_HOME_ANGLES)
-        if self._mc is not None:
-            base = [float(x) for x in self._mc.current_angles]
-        d = IDLE_WANDER_JOINT_DELTA_MAX
+        """New scan targets in hardware ‘look around’ ranges (upward-biased)."""
         target = []
-        for i in range(5):
-            delta = random.randint(-d, d)
-            target.append(self._clamp_joint_deg(i, base[i] + delta))
+        for i in range(NUM_JOINTS):
+            lo, hi = IDLE_LOOK_JOINT_RANGES[i]
+            a = float(random.randint(int(lo), int(hi)))
+            target.append(self._clamp_joint_deg(i, a))
         self._move(target)
         self._idle_wander_tick += 1
 
@@ -239,7 +239,6 @@ class BehaviorEngine:
                 self._inspect_base[1],
                 self._inspect_base[2],
                 self._inspect_hand,
-                self._inspect_base[4],
             ]
             self._move(pose)
             self._idle_inspect_phase = 1
@@ -264,7 +263,6 @@ class BehaviorEngine:
                 self._inspect_base[1],
                 self._inspect_base[2],
                 pattern[nod_i],
-                self._inspect_base[4],
             ]
             self._move(pose)
             self._idle_inspect_phase += 1
@@ -281,14 +279,13 @@ class BehaviorEngine:
         return [float(x) for x in JOINT_HOME_ANGLES]
 
     def _sad_slouch_pose(self):
-        """Sustained sad posture — preserves waist & gripper from pre-expression base."""
+        """Sustained sad posture — preserves waist from pre-expression base."""
         b = self._expr_base
         return [
             self._clamp_joint_deg(0, b[0]),
             self._clamp_joint_deg(1, SAD_SLOUCH_UPPER_DEG),
             self._clamp_joint_deg(2, SAD_SLOUCH_FOREARM_DEG),
             self._clamp_joint_deg(3, SAD_SLOUCH_HAND_DEG),
-            self._clamp_joint_deg(4, b[4]),
         ]
 
     def _tick_greet_home_nod(self):
@@ -335,7 +332,7 @@ class BehaviorEngine:
 
         ret = self._greet_return_base
         if ret is not None:
-            self._move([self._clamp_joint_deg(i, ret[i]) for i in range(5)])
+            self._move([self._clamp_joint_deg(i, ret[i]) for i in range(NUM_JOINTS)])
         self._greet_seq_phase = None
         self.set_behavior("idle")
 
@@ -514,7 +511,7 @@ class BehaviorEngine:
         """
         if self._expr_phase == 0:
             pose = express_present_firmware_deg()
-            self._move([self._clamp_joint_deg(i, pose[i]) for i in range(5)])
+            self._move([self._clamp_joint_deg(i, pose[i]) for i in range(NUM_JOINTS)])
             self._next_phase()
         # Phase 1+: hold until externally interrupted.
 

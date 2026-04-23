@@ -55,9 +55,9 @@ _ensure_src_path()
 
 from backend.command_router import CommandRouter, build_command_from_parse_result
 from backend.command_schema import Actions, Command
-from config import SLEEP_TIMEOUT_MS
+from config import NUM_JOINTS, SLEEP_TIMEOUT_MS
 from robot_kinematics import firmware_deg_for_named_pose
-from interfaces.robot_bridge import RobotBridge
+from .robot_bridge import RobotBridge
 from modules.behavior_engine import BehaviorEngine
 from modules.intent_parser import IntentParser
 from modules.safety_manager import SafetyManager
@@ -82,7 +82,7 @@ class LaptopMotionController:
     """Fallback / simulation only: same API as firmware MotionController for CommandRouter."""
 
     def __init__(self) -> None:
-        # Order: waist, upper_arm, forearm, hand, end_effector — URDF-aligned (robot_kinematics)
+        # Order: waist, upper_arm, forearm, hand — URDF-aligned (robot_kinematics)
         self.poses = _firmware_named_poses()
         self.current_angles = list(self.poses["home"])
         self.target_angles = list(self.poses["home"])
@@ -95,9 +95,9 @@ class LaptopMotionController:
         self.move_to_pose(list(self.poses[name]))
 
     def move_to_pose(self, angles: list) -> None:
-        if len(angles) != 5:
+        if len(angles) != NUM_JOINTS:
             return
-        self.target_angles = [int(angles[i]) for i in range(5)]
+        self.target_angles = [int(angles[i]) for i in range(NUM_JOINTS)]
         log("Sim move target: " + str(self.target_angles))
 
     def update(self) -> None:
@@ -109,6 +109,21 @@ class LaptopMotionController:
     def get_pose(self) -> list:
         return list(self.current_angles)
 
+    def nudge_track_direction(self, direction: str) -> None:
+        """Track-target nudges in sim (waist for L/R, forearm for forward)."""
+        d = (direction or "").strip().lower()
+        if d not in ("left", "right", "forward"):
+            return
+        p = list(self.current_angles)
+        step = 8
+        if d == "left":
+            p[0] = max(0, int(p[0]) - step)
+        elif d == "right":
+            p[0] = min(180, int(p[0]) + step)
+        else:
+            p[2] = max(0, int(p[2]) - step)
+        self.move_to_pose(p)
+
 
 class BridgeMotionAdapter:
     """Presents MotionController-shaped API to CommandRouter; forwards motion to RobotBridge."""
@@ -118,6 +133,13 @@ class BridgeMotionAdapter:
     def __init__(self, robot_bridge: RobotBridge) -> None:
         self._bridge = robot_bridge
         self._pose = list(self.poses["home"])
+        # BehaviorEngine (idle wander, expressions) reads current_angles like firmware MotionController.
+        self.current_angles = list(self._pose)
+        self.target_angles = list(self._pose)
+
+    def _sync_pose_state(self) -> None:
+        self.current_angles = list(self._pose)
+        self.target_angles = list(self._pose)
 
     def move_to_named_pose(self, name: str) -> None:
         if name == "home":
@@ -135,13 +157,16 @@ class BridgeMotionAdapter:
             self._pose = list(self.poses["down"])
         else:
             log("[BridgeMotionAdapter] Unknown pose: " + str(name))
+            return
+        self._sync_pose_state()
 
     def move_to_pose(self, angles: list) -> None:
-        if len(angles) != 5:
+        if len(angles) != NUM_JOINTS:
             return
-        deg = [int(round(float(angles[i]))) for i in range(5)]
+        deg = [int(round(float(angles[i]))) for i in range(NUM_JOINTS)]
         self._bridge.send_pose_degrees(deg)
         self._pose = list(deg)
+        self._sync_pose_state()
 
     def update(self) -> None:
         pass
@@ -156,6 +181,23 @@ class BridgeMotionAdapter:
             "note": "pose unavailable until telemetry added",
             "last_target": list(self._pose),
         }
+
+    def nudge_track_direction(self, direction: str) -> None:
+        """Small step toward track target: waist ± for left/right, forearm for forward."""
+        d = (direction or "").strip().lower()
+        if d not in ("left", "right", "forward"):
+            return
+        p = list(self._pose)
+        if len(p) != NUM_JOINTS:
+            p = list(self.poses["ready"])
+        step = 8
+        if d == "left":
+            p[0] = max(0, p[0] - step)
+        elif d == "right":
+            p[0] = min(180, p[0] + step)
+        else:
+            p[2] = max(0, p[2] - step)
+        self.move_to_pose(p)
 
 
 class _RouterWithBridgeNotify:
@@ -231,10 +273,24 @@ def status_report() -> dict:
         "pose": motion_controller.get_pose(),
         "recent_logs": get_logs(),
     }
-    if robot_bridge is not None:
+    if USE_SIM_MOTION:
+        out["ros_state"] = None
+        out["bridge_transport"] = "sim"
+        out["bridge_serial"] = None
+        out["ble_connected"] = None
+    elif robot_bridge is not None:
         out["ros_state"] = robot_bridge.current_state
+        out["bridge_transport"] = robot_bridge.transport
+        out["bridge_serial"] = getattr(robot_bridge, "serial_path", None)
+        if robot_bridge.transport == "ble":
+            out["ble_connected"] = robot_bridge.ble_is_connected()
+        else:
+            out["ble_connected"] = None
     else:
         out["ros_state"] = None
+        out["bridge_transport"] = None
+        out["bridge_serial"] = None
+        out["ble_connected"] = None
     return out
 
 
@@ -376,6 +432,8 @@ def get_status() -> dict:
             pass
         motion_controller.update()
         behavior_engine.update()
+        if robot_bridge is not None:
+            robot_bridge.tick_ble_link_log()
         out = dict(status_report())
         out["simulation"] = USE_SIM_MOTION
         return out
@@ -389,6 +447,9 @@ def get_status() -> dict:
             "recent_logs": [],
             "simulation": USE_SIM_MOTION,
             "ros_state": None,
+            "bridge_transport": None,
+            "bridge_serial": None,
+            "ble_connected": None,
             "error": str(exc),
         }
 

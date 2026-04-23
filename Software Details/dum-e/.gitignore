@@ -1,6 +1,9 @@
 # Secrets
 .env
 
+# Calibration session state (optional: track recorded_poses.jsonl in git)
+calibration/.last_pose.json
+
 # Python
 __pycache__/
 *.py[cod]

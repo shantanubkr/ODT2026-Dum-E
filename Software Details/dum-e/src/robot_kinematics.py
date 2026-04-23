@@ -1,14 +1,21 @@
 # URDF-aligned joint mapping for dum-e (dum_e_description/urdf/dum-e.xacro).
 #
 # Logical order matches firmware MotionController:
-#   waist, upper_arm, forearm, hand, end_effector
+#   waist, upper_arm, forearm, hand
 # URDF Revolute mapping (see dum_e_state_manager._logical_to_urdf):
 #   Revolute 8 = waist, Revolute 7 = upper_arm, Revolute 10 = forearm,
-#   Revolute 9 = hand; end_effector is firmware-only (full span treated as 0..pi rad).
+#   Revolute 9 = hand
 #
 # Servo "degrees" are 0..180 linear maps of each joint's URDF lower..upper (radians).
+#
+# UPRIGHT_FIRMWARE_DEG — single mechanical reference: on the built arm, commanding
+# these values is the stacked / neutral upright pose (home). Named poses and ROS
+# logical radians derive from this via firmware_pose_deg_to_logical_rad.
 
 import math
+
+# Calibrated home / scan default — matches hardware bring-up and config defaults.
+UPRIGHT_FIRMWARE_DEG = [110, 110, 115, 105]
 
 # (lower_rad, upper_rad) per logical joint — from dum-e.xacro limits
 _URDF_LIMITS_RAD = [
@@ -16,7 +23,6 @@ _URDF_LIMITS_RAD = [
     (-0.785398, 1.570796),   # Revolute 7 upper_arm
     (-1.570796, 1.570796),   # Revolute 10 forearm
     (-1.570796, 1.570796),   # Revolute 9 hand
-    (0.0, math.pi),          # end_effector (not in URDF)
 ]
 
 
@@ -34,8 +40,8 @@ def logical_rad_to_firmware_deg(angle_rad, joint_idx):
 
 
 def logical_pose_rad_to_firmware_deg(logical_rad):
-    """5-tuple/list waist..ee in radians → ints 0..180."""
-    return [logical_rad_to_firmware_deg(logical_rad[i], i) for i in range(5)]
+    """Tuple/list waist..hand in radians → ints 0..180."""
+    return [logical_rad_to_firmware_deg(logical_rad[i], i) for i in range(4)]
 
 
 def firmware_deg_to_logical_rad(deg, joint_idx):
@@ -50,30 +56,28 @@ def firmware_deg_to_logical_rad(deg, joint_idx):
 
 
 def firmware_pose_deg_to_logical_rad(degs):
-    return [firmware_deg_to_logical_rad(degs[i], i) for i in range(5)]
+    return [firmware_deg_to_logical_rad(degs[i], i) for i in range(4)]
 
 
 def neutral_logical_rad():
-    """Mid-span URDF pose (maps to ~90° on each joint with symmetric limits)."""
-    return tuple((lo + hi) * 0.5 for lo, hi in _URDF_LIMITS_RAD)
+    """Logical rad pose for mechanical upright (UPRIGHT_FIRMWARE_DEG)."""
+    return tuple(firmware_pose_deg_to_logical_rad(UPRIGHT_FIRMWARE_DEG))
 
 
 def neutral_pose_firmware_deg():
-    return logical_pose_rad_to_firmware_deg(neutral_logical_rad())
+    return list(UPRIGHT_FIRMWARE_DEG)
 
 
 # Named poses: logical radians (same convention as ROS dum_e_state_manager _publish_logical).
 # Tuned to match previous RViz poses; values are clamped by logical_rad_to_firmware_deg.
-# Gripper axis is 0..pi in logical rad; pi/2 matches firmware “mid” (90°) with JOINT_HOME.
-_EE_NEUTRAL_RAD = math.pi / 2
 
 NAMED_LOGICAL_RAD = {
     "home": neutral_logical_rad(),
-    "idle": (0.0, 0.5, 1.0, 0.0, _EE_NEUTRAL_RAD),
-    "ready": (0.0, 0.55, 1.05, 0.0, _EE_NEUTRAL_RAD),
-    "down": (0.0, 0.35, 0.75, 0.0, _EE_NEUTRAL_RAD),
-    "reach": (0.0, 0.52, 1.0, 0.0, _EE_NEUTRAL_RAD),
-    "error": (0.0, 0.2, 0.5, 0.0, _EE_NEUTRAL_RAD),
+    "idle": (0.0, 0.5, 1.0, 0.0),
+    "ready": (0.0, 0.55, 1.05, 0.0),
+    "down": (0.0, 0.35, 0.75, 0.0),
+    "reach": (0.0, 0.52, 1.0, 0.0),
+    "error": (0.0, 0.2, 0.5, 0.0),
 }
 
 NAMED_POSE_KEYS = ("home", "ready", "down")
@@ -85,8 +89,13 @@ def firmware_deg_for_named_pose(name):
     return logical_pose_rad_to_firmware_deg(NAMED_LOGICAL_RAD[name])
 
 
-# Sad slouch: legacy calibrated degrees → URDF-consistent logical pose
-_SAD_LEGACY_DEG = [90, 28, 118, 72, 90]
+# Sad slouch: legacy calibrated degrees → URDF-consistent logical pose (waist at upright).
+_SAD_LEGACY_DEG = [
+    UPRIGHT_FIRMWARE_DEG[0],
+    28,
+    118,
+    72,
+]
 SAD_SLOUCH_LOGICAL_RAD = tuple(firmware_pose_deg_to_logical_rad(_SAD_LEGACY_DEG))
 
 
@@ -96,6 +105,7 @@ def sad_slouch_firmware_deg():
 
 def express_present_firmware_deg():
     """Presentation pose — URDF-consistent mapping from legacy degree targets."""
+    u = UPRIGHT_FIRMWARE_DEG
     return logical_pose_rad_to_firmware_deg(
-        firmware_pose_deg_to_logical_rad([90, 45, 0, 90, 90])
+        firmware_pose_deg_to_logical_rad([u[0], 45.0, 0.0, u[3]])
     )

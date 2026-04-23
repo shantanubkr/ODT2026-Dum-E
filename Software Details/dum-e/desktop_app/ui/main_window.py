@@ -5,6 +5,7 @@ Main application window. Composes all panels and drives the polling loop.
 """
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 import tkinter as tk
@@ -20,6 +21,12 @@ from widgets.command_panel import CommandPanel  # noqa: E402
 from widgets.ai_debug_panel import AiDebugPanel  # noqa: E402
 
 POLL_MS = 1500
+_RESTART_DELAY_MS = 80
+
+
+def _restart_desktop_process() -> None:
+    """Re-exec the app so `.env` is re-parsed and imports see fresh os.environ."""
+    os.execv(sys.executable, [sys.executable, *sys.argv])
 
 C = {
     "bg":           "#0d1117",
@@ -36,9 +43,17 @@ C = {
 
 
 class MainWindow(tk.Frame):
-    def __init__(self, parent: tk.Misc, runtime: DesktopAppRuntime) -> None:
+    def __init__(
+        self,
+        parent: tk.Misc,
+        runtime: DesktopAppRuntime,
+        *,
+        env_path: Path | None = None,
+    ) -> None:
         super().__init__(parent, bg=C["bg"])
         self._runtime = runtime
+        self._env_path = env_path
+        self._env_mtime = self._stat_env_mtime()
         self._build()
         self._poll()
 
@@ -136,15 +151,44 @@ class MainWindow(tk.Frame):
     def _update_connection_indicator(self, status: dict) -> None:
         ros = str(status.get("ros_state", "")).upper()
         sim = status.get("simulation", False)
-        if sim:
+        bt = str(status.get("bridge_transport") or "")
+        bser = str(status.get("bridge_serial") or "")
+
+        if sim or bt == "sim":
             self._conn_dot.config(fg=C["warning"])
             self._conn_label.config(text="Simulation mode", fg=C["warning"])
+        elif bt == "ble":
+            self._conn_dot.config(fg=C["success"])
+            short = bser if len(bser) < 36 else "…" + bser[-32:]
+            self._conn_label.config(
+                text=f"BLE NUS  {short}",
+                fg=C["success"],
+            )
+        elif bt == "serial":
+            self._conn_dot.config(fg=C["success"])
+            short = bser if len(bser) < 32 else "…" + bser[-28:]
+            self._conn_label.config(
+                text=f"USB serial  {short}",
+                fg=C["success"],
+            )
+        elif bt == "ros":
+            self._conn_dot.config(fg=C["success"])
+            self._conn_label.config(
+                text=f"ROS  /dum_e_command  ({ros or '—'})",
+                fg=C["success"],
+            )
+        elif bt == "log_only":
+            self._conn_dot.config(fg=C["warning"])
+            self._conn_label.config(
+                text="No hardware (DUM_E_SERIAL_PORT or ROS)",
+                fg=C["warning"],
+            )
         elif ros in ("READY", "CONNECTED", "OK"):
             self._conn_dot.config(fg=C["success"])
-            self._conn_label.config(text=f"ROS {ros}", fg=C["success"])
-        elif ros:
+            self._conn_label.config(text=f"Bridge  {ros}", fg=C["success"])
+        elif ros and ros != "—":
             self._conn_dot.config(fg=C["danger"])
-            self._conn_label.config(text=f"ROS {ros}", fg=C["danger"])
+            self._conn_label.config(text=f"State  {ros}", fg=C["danger"])
         else:
             self._conn_dot.config(fg=C["muted"])
             self._conn_label.config(text="No connection", fg=C["muted"])
@@ -191,6 +235,21 @@ class MainWindow(tk.Frame):
         except Exception as exc:  # noqa: BLE001
             self._logs_panel.append(f"[refresh error] {exc}")
 
+    def _stat_env_mtime(self) -> float | None:
+        if self._env_path is None or not self._env_path.exists():
+            return None
+        try:
+            return self._env_path.stat().st_mtime
+        except OSError:
+            return None
+
     def _poll(self) -> None:
         self._refresh()
+        if self._env_path is not None:
+            cur = self._stat_env_mtime()
+            if cur != self._env_mtime:
+                self._env_mtime = cur
+                self._logs_panel.append("[env] .env changed — restarting…")
+                self.after(_RESTART_DELAY_MS, _restart_desktop_process)
+                return
         self.after(POLL_MS, self._poll)

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Upload src/ then soft-reset — one command for “flash latest firmware files”.
+# Upload src/ (firmware) then soft-reset. Does not touch desktop_app/ — see upload.sh header.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

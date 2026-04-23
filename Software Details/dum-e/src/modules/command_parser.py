@@ -58,6 +58,18 @@ class CommandParser:
         if command in self.valid_commands:  # Exact keyword match
             return {"type": "known", "command": command, "args": []}  # args reserved for extensions
 
+        parts = command.split()
+        if len(parts) == 5 and parts[0] == "pose_deg":
+            try:
+                angles = [float(parts[i]) for i in range(1, 5)]
+                return {
+                    "type": "pose_deg",
+                    "command": "pose_deg",
+                    "args": angles,
+                }
+            except ValueError:
+                pass
+
         if command.startswith("move "):  # Pattern: move <direction>
             parts = command.split()  # Whitespace tokens
             if len(parts) >= 2:  # Need verb + direction

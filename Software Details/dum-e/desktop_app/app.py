@@ -38,7 +38,11 @@ if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
 
 from services.app_runtime import DesktopAppRuntime  # noqa: E402
+from services import local_target_tracker  # noqa: E402
 from ui.main_window import MainWindow  # noqa: E402
+
+# No-ROS track loop (DUM_E_LOCAL_TARGET_TRACK=1 + DUM_E_VISION_URL) — not used with ROS node.
+local_target_tracker.start_if_enabled()
 
 
 def main() -> None:
@@ -50,7 +54,7 @@ def main() -> None:
     root.geometry("980x720")
     root.configure(bg="#0d1117")
 
-    MainWindow(root, runtime).pack(fill=tk.BOTH, expand=True)
+    MainWindow(root, runtime, env_path=_env_path).pack(fill=tk.BOTH, expand=True)
 
     root.mainloop()
 

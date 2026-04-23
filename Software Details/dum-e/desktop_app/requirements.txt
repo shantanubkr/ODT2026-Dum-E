@@ -5,3 +5,5 @@ sounddevice
 scipy
 simpleaudio
 opencv-python
+pyserial
+bleak

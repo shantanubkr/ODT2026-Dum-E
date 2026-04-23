@@ -1,8 +1,8 @@
 # Hardware inventory
 
-This doc matches the **current build**: **ESP32**, **five PWM servos**, **dedicated servo power**, and a **camera** used with **laptop-side** vision (`desktop_app/`). CAD / ROS packages: `ros2_ws/src/dum_e_description/`, reference copy under `dum_hardware/urdf/`.
+This doc matches the **current build**: **ESP32**, **four PWM servos** (arm only), **dedicated servo power**, and a **camera** used with **laptop-side** vision (`desktop_app/`). CAD / ROS URDF and meshes: **`ros2_ws/src/dum_e_description/`** (canonical).
 
-**CAD vs firmware:** The URDF has **four** revolute joints (`Revolute 7`–`10`); the **gripper** is driven in firmware as a fifth PWM axis (`end_effector`) and may not appear as a separate joint in RViz until bridged (see `ros2_ws/src/dum_e_description/README.md`).
+**CAD vs firmware:** The URDF has **four** revolute joints (`Revolute 7`–`10`); firmware joint order matches (**waist**, **upper_arm**, **forearm**, **hand**).
 
 Update the **Status** column as you wire and test: `planned` → `wired` → `tested`.
 
@@ -17,9 +17,9 @@ Update the **Status** column as you wire and test: `planned` → `wired` → `te
 
 ---
 
-## Motion — five PWM servos
+## Motion — four PWM servos (arm)
 
-Firmware uses **five** hobby servos (50 Hz): **four larger** units for the arm, **one smaller** for the gripper (`end_effector`). The **base** link in CAD has **no motor**; rotation starts at **waist**.
+Firmware uses **four** hobby servos (50 Hz) for the arm. The **base** link in CAD has **no motor**; rotation starts at **waist**.
 
 | Servo # | Firmware / CAD name | Role |
 |---------|---------------------|------|
@@ -27,16 +27,16 @@ Firmware uses **five** hobby servos (50 Hz): **four larger** units for the arm, 
 | 2 | `upper_arm` | Waist ↔ upper arm |
 | 3 | `forearm` | Upper arm ↔ forearm |
 | 4 | `hand` | Forearm ↔ hand (wrist) |
-| 5 | `end_effector` | Gripper open/close |
 
-Joint order in code and logs: `waist`, `upper_arm`, `forearm`, `hand`, `end_effector`.
+Joint order in code and logs: `waist`, `upper_arm`, `forearm`, `hand`.
 
 | Component | Qty | Notes | Status |
 |-----------|-----|-------|--------|
-| Hobby / RC servo (PWM), arm | 4 | Larger units per link torque | planned |
-| Hobby / RC servo (PWM), gripper | 1 | Smaller unit for end effector | planned |
+| Hobby / RC servo (PWM), arm | 4 | Per link torque | planned |
 
-GPIO defaults are in `src/pins.py` (`SERVO_WAIST` 4, `SERVO_UPPER_ARM` 22, `SERVO_FOREARM` 23, `SERVO_HAND` 21, `SERVO_END_EFFECTOR` 19). **Change there when wiring is final.**
+GPIO defaults are in `src/pins.py` (`SERVO_WAIST`–`SERVO_HAND`, or PCA9685 channels when `USE_PCA9685` is True). **Change there when wiring is final.**
+
+Mechanical **upright / home** is defined in `src/config.py` as **`UPRIGHT_POSE_DEG`** (and `robot_kinematics.UPRIGHT_FIRMWARE_DEG`): by default all joints **90°** after PWM calibration so the arm stands stacked neutral.
 
 **Control:** Default build has **no** physical panel buttons (`USE_PHYSICAL_BUTTONS = False` in `config.py`). Use **desktop dashboard**, **USB serial**, or **REPL**.
 
@@ -77,7 +77,6 @@ GPIO defaults are in `src/pins.py` (`SERVO_WAIST` 4, `SERVO_UPPER_ARM` 22, `SERV
 | Item | Notes |
 |------|-------|
 | `ros2_ws/src/dum_e_description/` | Canonical URDF, meshes, launch for RViz |
-| `dum_hardware/urdf/` | Reference xacro aligned with the description package |
 | `dum-e.trans` | ROS 1–style transmissions; replace with **ros2_control** if you simulate in Gazebo later |
 
 ---
@@ -87,7 +86,7 @@ GPIO defaults are in `src/pins.py` (`SERVO_WAIST` 4, `SERVO_UPPER_ARM` 22, `SERV
 | Component | Quantity | Purpose | Justification |
 |-----------|----------|---------|---------------|
 | ESP32 development board | 1 | Run MicroPython, PWM for servos, USB for programming and serial dashboard | Single board with enough GPIO; matches firmware and deploy flow (`mpremote`). |
-| Hobby (RC) servo motors | 5 | Four arm joints + gripper | PWM servos; four larger + one small end effector per mechanical design. |
+| Hobby (RC) servo motors | 4 | Arm joints (waist … hand) | PWM servos per mechanical design. |
 | 5 V power source for servos | 1 | Supply motor current without loading the ESP32 regulator | Peak current; dedicated rail avoids brownouts. |
 | Common electrical ground | 1 (net) | ESP32 GND to servo supply GND | Required for valid PWM references. |
 | USB cable | 1 | Power and flash ESP32 from PC | For `deploy/` scripts and REPL. |

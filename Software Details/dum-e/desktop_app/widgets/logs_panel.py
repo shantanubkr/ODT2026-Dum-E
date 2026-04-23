@@ -22,7 +22,7 @@ C = {
 _TAG_RULES: list[tuple[str, list[str], str]] = [
     ("error",   ["ERROR", "error", "FAULT", "fault"],       C["danger"]),
     ("warn",    ["WARNING", "warning", "WARN", "warn"],     C["warning"]),
-    ("bridge",  ["RobotBridge", "ROS"],                     C["accent"]),
+    ("bridge",  ["RobotBridge", "serial", "ROS", "BLE", "ble"], C["accent"]),
     ("state",   ["State changed", "Behavior changed"],      "#bc8cff"),
     ("ok",      ["GREET", "HELLO", "triggered", "READY"],   C["success"]),
 ]

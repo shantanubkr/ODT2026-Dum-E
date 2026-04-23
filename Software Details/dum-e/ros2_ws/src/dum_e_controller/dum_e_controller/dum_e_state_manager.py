@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 """DUM-E state manager: subscribes to /dum_e_command, publishes /joint_states at 10 Hz.
 
-Joint names match dum_e_description URDF (Revolute 7–10) plus firmware-only gripper:
+Joint names match dum_e_description URDF (Revolute 7–10):
   Revolute 8  ← logical waist (base→Waist_1, yaw)
   Revolute 7  ← logical upper_arm (Waist→Upper_arm)
   Revolute 10 ← logical forearm (Upper_arm→Forearm)
   Revolute 9  ← logical hand (Forearm→Hand)
-  end_effector ← fifth servo (not in URDF; RViz ignores unknown joint)
 """
 
 import math
@@ -31,7 +30,6 @@ _JOINT_NAMES = [
     "Revolute 8",
     "Revolute 9",
     "Revolute 10",
-    "end_effector",
 ]
 
 
@@ -40,15 +38,13 @@ def _logical_to_urdf(
     upper_arm: float,
     forearm: float,
     hand: float,
-    end_effector: float,
 ) -> list[float]:
-    """Map firmware [waist, upper_arm, forearm, hand, end_effector] to URDF joint order."""
+    """Map firmware [waist, upper_arm, forearm, hand] to URDF joint order."""
     return [
         float(upper_arm),   # Revolute 7
         float(waist),      # Revolute 8
         float(hand),       # Revolute 9
         float(forearm),    # Revolute 10
-        float(end_effector),
     ]
 
 
@@ -60,7 +56,7 @@ class DumEStateManager(Node):
         self._pub = self.create_publisher(JointState, "/joint_states", 10)
         self.create_timer(0.1, self._loop)
         self._state = "IDLE"
-        self._pose_deg_rad: list[float] = [0.0, 0.5, 1.0, 0.0, math.pi / 2]
+        self._pose_deg_rad: list[float] = [0.0, 0.5, 1.0, 0.0]
         self.create_subscription(
             String,
             "/dum_e_command",
@@ -93,9 +89,9 @@ class DumEStateManager(Node):
             self._state = "DANCE"
         else:
             parts = command.split()
-            if len(parts) == 6 and parts[0] == "pose_deg":
+            if len(parts) == 5 and parts[0] == "pose_deg":
                 try:
-                    degs = [float(parts[i]) for i in range(1, 6)]
+                    degs = [float(parts[i]) for i in range(1, 5)]
                     self._pose_deg_rad = [d * math.pi / 180.0 for d in degs]
                     self._state = "POSE_DEG"
                     self.get_logger().info("pose_deg (logical joints deg→rad): " + str(degs))
@@ -131,7 +127,7 @@ class DumEStateManager(Node):
         wobble_w = 0.35 * math.sin(t * 4.2)
         wobble_f = 0.22 * math.sin(t * 4.2 + 0.8)
         wobble_h = 0.08 * math.sin(t * 3.1)
-        self._publish_logical([wobble_w, 0.48, 1.02 + wobble_f, wobble_h, math.pi / 2])
+        self._publish_logical([wobble_w, 0.48, 1.02 + wobble_f, wobble_h])
 
     def _loop(self) -> None:
         if self._state == "IDLE":
@@ -152,11 +148,11 @@ class DumEStateManager(Node):
             self._publish_logical(list(self._pose_deg_rad))
 
     def _publish_logical(self, joints: list) -> None:
-        """joints order: waist, upper_arm, forearm, hand, end_effector (radians-ish)."""
-        if len(joints) != 5:
+        """joints order: waist, upper_arm, forearm, hand (radians-ish)."""
+        if len(joints) != 4:
             return
-        w, ua, f, h, ee = joints
-        self._publish_pose(_logical_to_urdf(w, ua, f, h, ee))
+        w, ua, f, h = joints
+        self._publish_pose(_logical_to_urdf(w, ua, f, h))
 
     def _publish_pose(self, positions: list) -> None:
         msg = JointState()

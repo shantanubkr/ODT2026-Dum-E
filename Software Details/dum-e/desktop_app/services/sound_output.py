@@ -6,6 +6,9 @@ Never blocks the UI. Silently skips missing sound files.
 """
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 import threading
 from pathlib import Path
 
@@ -27,7 +30,7 @@ _SOUND_FILES: dict[str, str] = {
 
 
 class SoundOutput:
-    """Fire-and-forget WAV playback keyed by action name."""
+    """Fire-and-forget WAV playback keyed by action `name."""
 
     def __init__(self) -> None:
         self._sounds: dict[str, Path] = {
@@ -50,10 +53,30 @@ class SoundOutput:
         path = self._sounds.get(key)
         if not path or not path.exists():
             return
+        if os.environ.get("DUM_E_NO_SOUND", "").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+        ):
+            return
+        # macOS: simpleaudio often segfaults from a worker thread next to Tk; use afplay.
+        if sys.platform == "darwin":
+            for _ in range(repeat):
+                try:
+                    subprocess.run(
+                        ["/usr/bin/afplay", str(path)],
+                        check=False,
+                        capture_output=True,
+                        timeout=120,
+                    )
+                except Exception:  # noqa: BLE001
+                    pass
+            return
         try:
             import simpleaudio as sa  # type: ignore[import]
+
             wave = sa.WaveObject.from_wave_file(str(path))
             for _ in range(repeat):
                 wave.play().wait_done()
         except Exception:  # noqa: BLE001
-            pass  # never crash the UI thread over a missing or broken sound file
+            pass

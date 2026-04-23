@@ -11,17 +11,16 @@ Firmware keeps **hardware** in one layer and **policy / behavior** in another. T
 | `src/pins.py` | GPIO for servos and optional `BTN_*` pins. |
 | `src/backend/` | **`command_schema.py`** — `Actions`, `Command`. **`command_router.py`** — `CommandRouter` (routes `Command` to motion, safety, behaviors, status/history) and **`build_command_from_parse_result()`** (maps parser output to `Command`). |
 | `src/modules/` | **`state_machine.py`** — `States` and transitions. **`command_parser.py`** — text → `{type, command, args}`. **`intent_parser.py`** — extends parser with **sentiment** (`GREET` / `BYE` / `HAPPY` / `SAD` / `NEUTRAL`) for expression behaviors. **`motion_controller.py`** — five PWM servos, named poses (`home`, `ready`, `down`). **`behavior_engine.py`** — idle / greeting / thinking + `express_*` behaviors. **`safety_manager.py`** — emergency stop (+ optional fault latch); `can_move()` gates motion in the router. |
-| `src/drivers/` | **`stepper.py`** — `Servo` (MicroPython `PWM` hobby servo; filename is legacy). **`panel_button.py`** — `Button` (debounced) if **`USE_PHYSICAL_BUTTONS`** is enabled. Vision runs on the **laptop** (`desktop_app/`), not on the ESP32. |
+| `src/drivers/` | **`servo.py`** — `Servo` (MicroPython `PWM` hobby servo). **`panel_button.py`** — `Button` (debounced) if **`USE_PHYSICAL_BUTTONS`** is enabled. Vision runs on the **laptop** (`desktop_app/`), not on the ESP32. |
 | `src/utils/` | Logging, timers — no hardware imports. |
 | `deploy/` | Host scripts (`mpremote`) — not flashed to the device. |
-| `test/` | Host-side or future scaffolds. |
 
 ## Host / desktop (not on the ESP32)
 
 | Path | Role |
 |------|------|
 | `desktop_app/` | Dashboard and **`dum_e_runtime.py`**: imports the same `backend` + `modules` under CPython (with a small time shim), optional **`LaptopMotionController`** sim, or **`RobotBridge`** to publish string commands to ROS 2 (`/dum_e_command`) when not skipping ROS. |
-| `src/interfaces/robot_bridge.py` | **`RobotBridge`** — maps high-level `Command` actions to ROS-side strings; used from **`desktop_app`**, **not** from `src/main.py` on the board. |
+| `desktop_app/services/robot_bridge.py` | **`RobotBridge`** — maps high-level `Command` to **BLE NUS** ( **`DUM_E_BLE=1`** ), **or** USB serial ( **`DUM_E_SERIAL_PORT`** ), **or** ROS `ros2 topic pub` on **`/dum_e_command`** (one path); **not** flashed to the ESP32. |
 
 ## Data flow (firmware)
 

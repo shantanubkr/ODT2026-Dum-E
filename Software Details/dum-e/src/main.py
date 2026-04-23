@@ -5,7 +5,13 @@ import time
 import select
 import sys
 
-from config import LOOP_DELAY_MS, SLEEP_TIMEOUT_MS, USE_PHYSICAL_BUTTONS
+from config import (
+    BLE_DEVICE_NAME,
+    LOOP_DELAY_MS,
+    SLEEP_TIMEOUT_MS,
+    USE_BLE_NUS,
+    USE_PHYSICAL_BUTTONS,
+)
 
 from modules.recovery_timers import update_data_error_recovery, update_stop_recovery
 
@@ -34,23 +40,35 @@ safety_manager = SafetyManager()
 motion_controller = MotionController()
 last_activity_ms = reset_timer()
 
+_ble_nus = None
+if USE_BLE_NUS:
+    try:
+        import bluetooth
+
+        from drivers.ble_uart_nus import BleUartNus
+
+        _ble_nus = BleUartNus(bluetooth.BLE(), name=BLE_DEVICE_NAME)
+        log("BLE NUS advertising as: " + BLE_DEVICE_NAME)
+    except Exception as exc:
+        log("BLE NUS init failed: " + str(exc))
+        _ble_nus = None
+
 # Give behavior engine access to servo control for expression behaviors.
 behavior_engine.set_motion_controller(motion_controller)
 behavior_engine.set_runtime_guards(state_machine, safety_manager)
 
 if USE_PHYSICAL_BUTTONS:
     from drivers.panel_button import Button
-    from pins import BTN_DOWN, BTN_J1, BTN_J2, BTN_J3, BTN_J4, BTN_J5, BTN_UP
+    from pins import BTN_DOWN, BTN_J1, BTN_J2, BTN_J3, BTN_J4, BTN_UP
 
     btn_j1 = Button(BTN_J1)
     btn_j2 = Button(BTN_J2)
     btn_j3 = Button(BTN_J3)
     btn_j4 = Button(BTN_J4)
-    btn_j5 = Button(BTN_J5)
     btn_up = Button(BTN_UP)
     btn_down = Button(BTN_DOWN)
 else:
-    btn_j1 = btn_j2 = btn_j3 = btn_j4 = btn_j5 = btn_up = btn_down = None
+    btn_j1 = btn_j2 = btn_j3 = btn_j4 = btn_up = btn_down = None
 
 # Non-blocking serial line reader: accumulates chars until \n or \r.
 _serial_poll = select.poll()
@@ -158,23 +176,37 @@ command_router = CommandRouter(
 
 
 def poll_serial():
-    """Non-blocking read of one character from stdin; return a complete line or None."""
+    """Read one complete line from USB stdin within ~LOOP_DELAY_MS.
+
+    A zero-timeout poll often misses USB CDC input on some ESP32 MicroPython
+    builds; blocking for short slices lets the REPL/VCP driver deliver bytes.
+    """
     global _serial_buf
 
-    events = _serial_poll.poll(0)
-    if not events:
-        return None
-
-    char = sys.stdin.read(1)
-    if char in ('\n', '\r'):
-        if _serial_buf:
-            line = ''.join(_serial_buf)
-            _serial_buf = []
-            return line
-        return None
-    else:
-        _serial_buf.append(char)
-        return None
+    deadline = time.ticks_add(time.ticks_ms(), LOOP_DELAY_MS)
+    while time.ticks_diff(deadline, time.ticks_ms()) > 0:
+        wait_ms = time.ticks_diff(deadline, time.ticks_ms())
+        if wait_ms > 50:
+            wait_ms = 50
+        if wait_ms <= 0:
+            break
+        events = _serial_poll.poll(wait_ms)
+        if not events:
+            continue
+        while True:
+            char = sys.stdin.read(1)
+            if not char:
+                break
+            if char in ("\n", "\r"):
+                if _serial_buf:
+                    line = "".join(_serial_buf)
+                    _serial_buf = []
+                    return line
+            else:
+                _serial_buf.append(char)
+            if not _serial_poll.poll(0):
+                break
+    return None
 
 
 def handle_buttons():
@@ -194,9 +226,6 @@ def handle_buttons():
     if btn_j4.pressed():
         motion_controller.select_joint(3)
         mark_activity()
-    if btn_j5.pressed():
-        motion_controller.select_joint(4)
-        mark_activity()
 
     if btn_up.held():
         motion_controller.nudge_joint(+1)
@@ -207,6 +236,10 @@ def handle_buttons():
 
 
 def loop():
+    t0 = time.ticks_ms()
+    if _ble_nus is not None:
+        for ln in _ble_nus.pull_lines():
+            handle_command(ln)
     line = poll_serial()
     if line:
         handle_command(line)
@@ -217,7 +250,10 @@ def loop():
     update_activity_state()
     motion_controller.update()
     behavior_engine.update()
-    time.sleep_ms(LOOP_DELAY_MS)
+    elapsed = time.ticks_diff(time.ticks_ms(), t0)
+    rest = LOOP_DELAY_MS - elapsed
+    if rest > 0:
+        time.sleep_ms(rest)
 
 
 boot()

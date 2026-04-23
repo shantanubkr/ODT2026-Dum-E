@@ -35,6 +35,8 @@ The device runs **MicroPython** on an ESP32. You edit code locally in **Cursor**
 
 7. If you moved the repo and see `bad interpreter` from `mpremote`, remove `.venv` and run `./setup-host.sh` again.
 
+8. **`termios.error: (22, 'Invalid argument')` when `mpremote` connects** — pyserial could not apply serial settings on that `/dev/cu.*` node (common on macOS with some USB‑UART chips or when the wrong device is selected). Quit the **desktop app**, **Thonny**, and any **serial monitor** using the same port; unplug/replug the ESP32; run `ls /dev/cu.*` and set **`export DUM_E_MPREMOTE_PORT=/dev/cu.…`** to the real motor board; try another **USB cable/port** (data cable, not charge‑only); update the vendor driver (Silicon Labs CP210x, WCH CH34x, etc.) for your OS version; then **`pip install -U pyserial mpremote`** in `.venv`. If **`screen /dev/cu.… 115200`** also fails, the issue is outside Python (cable, hub, or driver).
+
 ## Current focus
 
 1. Foundation (project layout, config, docs)
@@ -42,6 +44,7 @@ The device runs **MicroPython** on an ESP32. You edit code locally in **Cursor**
 3. Safety (limits, emergency stop)
 4. Vision & UX on the laptop (camera, dashboard, optional ROS)
 5. Higher-level behavior (state machine, commands, personality-style behaviors)
+6. **Table / pick calibration (USB `pose_deg` jog):** see **`calibration/README.md`**
 
 ## Project structure
 
@@ -51,7 +54,6 @@ The device runs **MicroPython** on an ESP32. You edit code locally in **Cursor**
 | `docs/` | Hardware inventory, architecture, state machine notes |
 | `deploy/` | Helper scripts to upload `src/` to the device and reset the board |
 | `requirements.txt` | Host Python deps (`mpremote`); use with project `.venv` |
-| `test/` | Host-side or future test scaffolds (not full hardware-in-the-loop yet) |
 
 ## Next steps
 

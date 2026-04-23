@@ -8,7 +8,7 @@ What it does:
     2. Opens the ESP32-CAM serial port directly via pyserial (no mpremote)
     3. Pastes the stream-server script into the MicroPython REPL line by line
     4. Waits until the board prints its IP address
-    5. Launches test_vision.py pointed at that IP
+    5. Launches vision_preview.py pointed at that IP
 
 Press Ctrl+C at any time to shut everything down.
 """
@@ -204,9 +204,9 @@ def main():
 
     stream_url = f"http://{ip}:{STREAM_PORT}/stream"
     print(f"\nStream live at {stream_url}")
-    print("Launching vision test... (press q in the OpenCV window to quit)\n")
+    print("Launching vision preview... (press q in the OpenCV window to quit)\n")
 
-    vision_script = os.path.join(os.path.dirname(__file__), "test_vision.py")
+    vision_script = os.path.join(os.path.dirname(__file__), "vision_preview.py")
     try:
         subprocess.run([sys.executable, vision_script, stream_url], check=False)
     except KeyboardInterrupt:
