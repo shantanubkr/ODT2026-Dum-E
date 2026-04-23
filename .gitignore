@@ -5,5 +5,5 @@
 **/desktop_app/sounds/*.pkg
 **/desktop_app/sounds/*.bin
 
-# Exceeds GitHub 100 MB limit; keep locally or use Git LFS
+# Raw export exceeds GitHub limit; compressed copy is Media/Final/img-7987.mp4
 Media/Final/IMG_7987.MOV
